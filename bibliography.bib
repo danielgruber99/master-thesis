@@ -5,3 +5,243 @@
   author = {Leslie Lamport}
 }
 
+# 01 Interleaving with coroutines: a practical approach for robust index joins
+@article{10.14778/3149193.3149202,
+author = {Psaropoulos, Georgios and Legler, Thomas and May, Norman and Ailamaki, Anastasia},
+title = {Interleaving with coroutines: a practical approach for robust index joins},
+year = {2017},
+issue_date = {October 2017},
+publisher = {VLDB Endowment},
+volume = {11},
+number = {2},
+issn = {2150-8097},
+url = {https://doi.org/10.14778/3149193.3149202},
+doi = {10.14778/3149193.3149202},
+abstract = {Index join performance is determined by the efficiency of the lookup operation on the involved index. Although database indexes are highly optimized to leverage processor caches, main memory accesses inevitably increase lookup runtime when the index outsizes the last-level cache; hence, index join performance drops. Still, robust index join performance becomes possible with instruction stream interleaving: given a group of lookups, we can hide cache misses in one lookup with instructions from other lookups by switching among their respective instruction streams upon a cache miss.In this paper, we propose interleaving with coroutines for any type of index join. We showcase our proposal on SAP HANA by implementing binary search and CSB+-tree traversal for an instance of index join related to dictionary compression. Coroutine implementations not only perform similarly to prior interleaving techniques, but also resemble the original code closely, while supporting both interleaved and non-interleaved execution. Thus, we claim that coroutines make interleaving practical for use in real DBMS codebases.},
+journal = {Proc. VLDB Endow.},
+month = oct,
+pages = {230-242},
+numpages = {13}
+}
+
+# 02 Interleaving with coroutines: a systematic and practical approach to hide memory latency in index joins
+@article{10.1007/s00778-018-0533-6,
+author = {Psaropoulos, Georgios and Legler, Thomas and May, Norman and Ailamaki, Anastasia},
+title = {Interleaving with coroutines: a systematic and practical approach to hide memory latency in index joins},
+year = {2019},
+issue_date = {Aug 2019},
+publisher = {Springer-Verlag},
+address = {Berlin, Heidelberg},
+volume = {28},
+number = {4},
+issn = {1066-8888},
+url = {https://doi.org/10.1007/s00778-018-0533-6},
+doi = {10.1007/s00778-018-0533-6},
+abstract = {Index joins present a case of pointer-chasing code that causes data cache misses. In principle, we can hide these cache misses by overlapping them with computation: The lookups involved in an index join are parallel tasks whose execution can be interleaved, so that, when a cache miss occurs in one task, the processor executes independent instructions from another one. Yet, the literature provides no concrete performance model for such interleaved execution and, more importantly, production systems still waste processor cycles on cache misses because (a) hardware and compiler limitations prohibit automatic task interleaving and (b) existing techniques that involve the programmer produce unmaintainable code and are thus avoided in practice. In this paper, we address these shortcomings: we model interleaved execution explaining how to estimate the speedup of any interleaving technique, and we propose interleaving with coroutines, i.e., functions that suspend their execution for later resumption. We deploy coroutines on index joins running in SAP HANA and show that interleaving with coroutines performs like other state-of-the-art techniques, retains close resemblance to the original code, and supports both interleaved and non-interleaved execution in the same implementation. Thus, we establish the first systematic and practical approach for interleaving index joins of any type.},
+journal = {The VLDB Journal},
+month = aug,
+pages = {451-471},
+numpages = {21},
+keywords = {Interleaving, Coroutlines, Pointer-chasing, Main memory accesses, Data cache misses, Memory latency, Main memory databases}
+}
+
+# 03 CoroBase: Coroutine-Oriented Main-Memory Database Engine
+@article{10.14778/3430915.3430932,
+  author    = {He, Yongjun and Lu, Jiacheng and Wang, Tianzheng},
+  title     = {CoroBase: Coroutine-Oriented Main-Memory Database Engine},
+  journal   = {Proc. VLDB Endow.},
+  year      = {2021},
+  volume    = {14},
+  number    = {3},
+  pages     = {431--444},
+  publisher = {VLDB Endowment},
+  doi       = {10.14778/3430915.3430932},
+  url       = {https://doi.org/10.14778/3430915.3430932}
+}
+
+# 04 What Are You Waiting For? Use Coroutines for Asynchronous I/O to Hide I/O Latencies and Maximize the Read Bandwidth!
+@article{10.1007/s00778-021-00680-5,
+  author = {Leonard von Merzljak},
+  journal = {The VLDB Journal},
+  title = {What Are You Waiting For? Use Coroutines for Asynchronous I/O to Hide I/O Latencies and Maximize the Read Bandwidth!},
+  year = {2021},
+}
+
+# 05 Exploiting coroutines to attack the "killer nanoseconds"
+@article{10.14778/3236187.3236216,
+author = {Jonathan, Christopher and Minhas, Umar Farooq and Hunter, James and Levandoski, Justin and Nishanov, Gor},
+title = {Exploiting coroutines to attack the "killer nanoseconds"},
+year = {2018},
+issue_date = {July 2018},
+publisher = {VLDB Endowment},
+volume = {11},
+number = {11},
+issn = {2150-8097},
+url = {https://doi.org/10.14778/3236187.3236216},
+doi = {10.14778/3236187.3236216},
+abstract = {Database systems use many pointer-based data structures, including hash tables and B+-trees, which require extensive "pointer-chasing." Each pointer dereference, e.g., during a hash probe or a B+-tree traversal, can result in a CPU cache miss, stalling the CPU. Recent work has shown that CPU stalls due to main memory accesses are a significant source of overhead, even for cache-conscious data structures, and has proposed techniques to reduce this overhead, by hiding memory-stall latency. In this work, we compare and contrast the state-of-the-art approaches to reduce CPU stalls due to cache misses for pointer-intensive data structures. We present an in-depth experimental evaluation and a detailed analysis using four popular data structures: hash table, binary search, Masstree, and Bw-tree. Our focus is on understanding the practicality of using coroutines to improve throughput of such data structures. The implementation, experiments, and analysis presented in this paper promote a deeper understanding of how to exploit coroutines-based approaches to build highly efficient systems.},
+journal = {Proc. VLDB Endow.},
+month = jul,
+pages = {1702-1714},
+numpages = {13}
+}
+
+# 06 Cooperative Memory Management for Table and Temporary Data
+@inproceedings{10.1145/3596225.3596230,
+author = {Lasch, Robert and Legler, Thomas and May, Norman and Scheirle, Bernhard and Sattler, Kai-Uwe},
+title = {Cooperative Memory Management for Table and Temporary Data},
+year = {2023},
+isbn = {9798400707834},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3596225.3596230},
+doi = {10.1145/3596225.3596230},
+abstract = {The traditional paradigm for managing memory in database management systems (DBMS) treats memory used for caching table data and memory for temporary data as separate entities. This leads to inefficient utilization of the available memory capacity for mixed workloads. With memory being a significant factor in the costs of operating a DBMS, utilizing memory as efficiently as possible is highly desirable. As an alternative to the traditional paradigm, we propose managing the entire available memory in a cooperative manner to achieve better memory utilization and consequently higher cost–effectiveness for DBMSs. Initial experimental evaluation of cooperative memory management using a prototype implementation shows promising results and leads to several interesting further research directions.},
+booktitle = {Proceedings of the 1st Workshop on Simplicity in Management of Data},
+articleno = {2},
+numpages = {5},
+location = {Bellevue, WA, USA},
+series = {SiMoD '23}
+}
+
+# 07 The Art of Latency Hiding in Modern Database Engines
+@article{10.14778/3632093.3632117,
+author = {Huang, Kaisong and Wang, Tianzheng and Zhou, Qingqing and Meng, Qingzhong},
+title = {The Art of Latency Hiding in Modern Database Engines},
+year = {2023},
+issue_date = {November 2023},
+publisher = {VLDB Endowment},
+volume = {17},
+number = {3},
+issn = {2150-8097},
+url = {https://doi.org/10.14778/3632093.3632117},
+doi = {10.14778/3632093.3632117},
+abstract = {Modern database engines must well use multicore CPUs, large main memory and fast storage devices to achieve high performance. A common theme is hiding latencies such that more CPU cycles can be dedicated to "real" work, improving overall throughput. Yet existing systems are only able to mitigate the impact of individual latencies, e.g., by interleaving memory accesses with computation to hide CPU cache misses. They still lack the joint optimization of hiding the impact of multiple latency sources.This paper presents MosaicDB, a set of latency-hiding techniques to solve this problem. With stackless coroutines and carefully crafted scheduling policies, we explore how I/O and synchronization latencies can be hidden in a well-crafted OLTP engine that already hides memory access latency, without hurting the performance of memory-resident workloads. MosaicDB also avoids oversubscription and reduces contention using the coroutine-to-transaction paradigm. Our evaluation shows MosaicDB can achieve these goals and up to 33x speedup over prior state-of-the-art.},
+journal = {Proc. VLDB Endow.},
+month = nov,
+pages = {577-590},
+numpages = {14}
+}
+# 08 How to Be Fast and Not Furious: Looking Under the Hood of CPU Cache Prefetching
+@inproceedings{10.1145/3662010.3663451,
+  author    = {K{\"u}hn, Roland and M{\"u}hlig, Jan and Teubner, Jens},
+  title     = {How to Be Fast and Not Furious: Looking Under the Hood of CPU Cache Prefetching},
+  booktitle = {Proceedings of the 20th International Workshop on Data Management on New Hardware (DaMoN '24)},
+  year      = {2024},
+  month     = jun,
+  date      = {2024-06-10},
+  location  = {Santiago, AA, Chile},
+  publisher = {ACM, New York, NY, USA},
+  pages     = {1--10},
+  url       = {https://doi.org/10.1145/3662010.3663451},
+  doi       = {10.1145/3662010.3663451}
+}
+
+
+# 09 Interleaved Multi-Vectorizing
+@article{10.14778/3368289.3368290,
+author = {Fang, Zhuhe and Zheng, Beilei and Weng, Chuliang},
+title = {Interleaved multi-vectorizing},
+year = {2019},
+issue_date = {November 2019},
+publisher = {VLDB Endowment},
+volume = {13},
+number = {3},
+issn = {2150-8097},
+url = {https://doi.org/10.14778/3368289.3368290},
+doi = {10.14778/3368289.3368290},
+abstract = {SIMD is an instruction set in mainstream processors, which provides the data level parallelism to accelerate the performance of applications. However, its advantages diminish when applications suffer from heavy cache misses. To eliminate cache misses in SIMD vectorization, we present interleaved multi-vectorizing (IMV) in this paper. It interleaves multiple execution instances of vectorized code to hide memory access latency with more computation. We also propose residual vectorized states to solve the control flow divergence in vectorization. IMV can make full use of the data parallelism in SIMD and the memory level parallelism through prefetching. It reduces cache misses, branch misses and computation overhead to significantly speed up the performance of pointer-chasing applications, and it can be applied to executing entire query pipelines. As experimental results show, IMV achieves up to 4.23X and 3.17X better performance compared with the pure scalar implementation and the pure SIMD vectorization, respectively.},
+journal = {Proc. VLDB Endow.},
+month = nov,
+pages = {226-238},
+numpages = {13}
+}
+
+
+### LEWIS Baker blogs about coroutines
+@misc{baker2017coroutines,
+  author = {Baker, Lewis},
+  title = {Coroutine Theory},
+  year = {2017},
+  month = sep,
+  day = {25},
+  howpublished = {\url{https://lewissbaker.github.io/2017/09/25/coroutine-theory}},
+  note = {Accessed: 2025-10-30}
+}
+@misc{baker2018understanding,
+  author = {Baker, Lewis},
+  title = {C++ Coroutines: Understanding operator co_await},
+  year = {2018},
+  month = nov,
+  day = {17},
+  howpublished = {\url{https://lewissbaker.github.io/2017/11/17/understanding-operator-co-await}},
+  note = {Accessed: 2025-10-30}
+}
+@misc{baker2018promise,
+  author = {Baker, Lewis},
+  title = {C++ Coroutines: Understanding the promise type},
+  year = {2018},
+  month = sep,
+  day = {5},
+  howpublished = {\url{https://lewissbaker.github.io/2018/09/05/understanding-the-promise-type}},
+  note = {Accessed: 2025-10-30}
+}
+@misc{baker2020symmetrictransfer,
+  author = {Baker, Lewis},
+  title = {C++ Coroutines: Understanding Symmetric Transfer},
+  year = {2020},
+  month = may,
+  day = {11},
+  howpublished = {\url{https://lewissbaker.github.io/2020/05/11/understanding_symmetric_transfer}},
+  note = {Accessed: 2025-10-30}
+}
+@misc{baker2022compilertransform,
+  author = {Baker, Lewis},
+  title = {C++ Coroutines: Understanding the Compiler Transform},
+  year = {2022},
+  month = aug,
+  day = {27},
+  howpublished = {\url{https://lewissbaker.github.io/2022/08/27/understanding-the-compiler-transform}},
+  note = {Accessed: 2025-10-30}
+}
+
+
+### cpp reference on coroutines
+@misc{key,
+  author = {cppreference},
+  howpublished = {\url{https://en.cppreference.com/w/cpp/language/coroutines}},
+  title = {C++ Coroutines},
+  year = {2024}
+}
+
+
+# other blogs
+@misc{mazieres2021cppcoroutines,
+  author = {Mazières, David},
+  title = {C++ Coroutines},
+  year = {2021},
+  month = {feb},
+  howpublished = {\url{https://www.scs.stanford.edu/~dm/blog/c++-coroutines.html}},
+  note = {Accessed: 2025-10-30}
+}
+
+@misc{tatham2023coroutines,
+  author = {Tatham, Simon},
+  title = {Coroutines in C++20},
+  year = {2023},
+  month = {aug},
+  day = {6},
+  howpublished = {\url{https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/coroutines-c++20/}},
+  note = {Accessed: 2025-10-30}
+}
+
+# duckdb
+https://duckdb.org/docs/stable/, https://github.com/duckdb/duckdb
+
+
+# youtube videos on coroutines
+C++20’s Coroutines for Beginners - Andreas Fertig - CppCon 2022
+https://github.com/CppCon/CppCon2022
+
+https://www.youtube.com/watch?v=b6pYieNd_OY Phil Nash ccpcon2025
+
