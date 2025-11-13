@@ -1,20 +1,31 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Using Coroutines in different DataStructures for hiding cache-misses}\label{chapter:introduction}
+\chapter{Using Coroutines in different DataStructures for hiding cache-misses}\label{chapter:CoroInDatastructures}
 
 \section{Different coroutine approaches and their trade-offs}
 Citation test~\parencite{latex}.
 
+First approach was simple: create a coroutine each time from s cratch for lookup.
+Bad performance, re-use coroutines so the creatio overhead is minimal and maybe create 5-20 coroutines and reuse them for all the lookups.
+First with co_yield concept and caller has to resume the coroutine, but for caller it is complex to distinguish if
+
 
 \section{Coroutines in chaining Hashtable}
+\subsection{Implementation}
+\subsection{Benchmarking and Measurements}
+\subsection{Results}%also across different hardware architectures
 
 
 \section{Coroutines in linear probing hashtable} % as in duckdb
-
+\subsection{Implementation}
+\subsection{Measurements}
+\subsection{Results}%also across different hardware architectures
 
 \section{Coroutines in B+ Tree}
+\subsection{Implementation}
+\subsection{Measurements}
+\subsection{Results}%also across different hardware architectures
 
 
-\section{Coroutines in DuckDB}
-
+%more reference why this is needed for databases

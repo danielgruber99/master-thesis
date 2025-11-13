@@ -1,7 +1,27 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Introduction}\label{chapter:introduction}
+\chapter{Integration of Coroutines in DuckDB}\label{chapter:DuckDBIntegration}
 
-\section{Section}
+\section{DuckDB Introduction}
+
+
+
+\section{Understanding the implemented linear Hashtable}
 Citation test~\parencite{latex}.
+
+
+
+\section{Integration of Coroutines in DuckDB}
+
+DuckDB integration: linear probing hashtabale where if same key it is chained.
+
+join_hashtable.cpp and join_hashtable.hpp (vs aggregate hashtable in aggregate_hashtable.hpp/.cpp and base_aggregate_hashtable.cpp/.hpp)
+
+Difficulty in understanding the hashtable and implementing coroutines in huge concept of hastable withotu knowing full picture.
+has to be done in Join phase of the hastable (which is divided in different datachaunks and each datachunk is handled by a thread wher ea thread cna possibly handle more datachunks).
+In this thread coroutines can easily integrated as they are asynchronoulsy called and ...
+
+
+\section{Results of timings}
+
