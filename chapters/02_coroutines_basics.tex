@@ -4,8 +4,58 @@
 \chapter{Cache Misses, Coroutines and Data Structures Fundamentals}\label{chapter:CacheCoroDSFundamentals}
 
 
+\section{Coroutine CPP Reference standardisation history}\label{section:Coroutines}
+Citation test~\parencite{latex}.
+
+
+
+\subsection{Coroutine is a function}
+A C++ Coroutine is a generalization of a function. Additionally to normal functions, coroutines can suspend execution to be resumed later.
+Coroutines are defined with the keywords co\_await, co\_yield and co\_return.
+
+Whereas a normal function has a single entry point - the Call operation - and a single exit point - the Return operation -, a coroutine can be suspended and resumed at multiple points in its execution.
+
+
+
+When a coroutine is called, it does not execute its body immediately. Instead, it returns a special object known as a coroutine handle or promise object.
+This object represents the state of the coroutine and allows the caller to control its execution.
+
+
+and examples from Andreas Fertig highlghitng different concepts with  co\_yield and co\_await
+
+% https://www.reddit.com/r/cpp/comments/s980ik/a_highlevel_coroutine_explanation/
+
+
+\subsection{The co\_await, co\_return and co\_yield operators}
+co\_await
+
+awaitable (and awaiter) concept and promiseType
+
+
+co\_return
+
+
+co\_yield
+
+
+\subsection{Example of Coroutines}
+\subsubsection{Simple co\_await example}
+
+
+\subsection{Simple generator (co\_yield) example}
+
+
+\subsubsection{Advanced Example}
+
+
+\subsection{Tricks and Pitfalls}
+
+
+
+
 % Cache Misses
-\section{Cache Misses}\label{section:CacheMisses}
+\section{Computer Architecture, Cache Misses}\label{section:CacheMisses}
+\subsection{Different Computer Architectures, x86-64, amd, apple, mips}
 \subsection{Introduction to computer achitecture and storage layout}
 
 \subsection{What are cache misses?}
@@ -15,34 +65,11 @@
 
 \section{Data Structures}\label{section:DataStructures}
 \subsection{Hashtable}
+Chaining vs Open Addressing (Linear Probing)
 \subsection{B+ Tree}
 
 
 
-
-
-\section{Coroutine CPP Reference standardisation history}\label{section:Coroutines}
-Citation test~\parencite{latex}.
-
-
-
-\subsection{Basic Concepts}
-
-and examples from Andreas Fertig highlghitng different concepts with  co_yield and co_await
-
-https://www.reddit.com/r/cpp/comments/s980ik/a_highlevel_coroutine_explanation/
-
-
-\subsection{Advanced Concepts}
-
-
-
-\subsection{Tricks and Pitfalls}
-
-
-
-
-\subsection{For what it is suited and what not}
 
 
 
