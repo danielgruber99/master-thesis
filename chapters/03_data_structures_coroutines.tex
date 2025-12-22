@@ -28,4 +28,25 @@ First with co\_yield concept and caller has to resume the coroutine, but for cal
 \subsection{Results}%also across different hardware architectures
 
 
+% Verlauf von meiner Coroutines usage:
+
+% erst für jeden part eine coroutine erstellt und wiedre gelöscht -> ineffizient, weil erstellen von coroutinen viel Zeit und stack storage braucht.
+
+% Dann mit N (e.g. =5,10,...) wiederverwendbaren Coroutinen, die erst zerstört werden, wenn alles durch, und imt co_yield und co_await zu suchenden Key gegeben
+% und coroutine yielded (nicht mehr returned) Value zurück, wenn gefunden! (Problem: Unterscheidung zwischen noch nicht gefunden in HT, weil noch weiter in chaining durchtraversieren oder in linear
+% weiter durchspringen muss, vs schon gefunden vs. nicht in Hashtable da (also nicht auffindbar, da Key nicht existiert)).
+% Handhabarkeit schwierig, da wenn nicht gefunden, dann nullpointer zurück, wenn gefunden dann obviously den Value, aber was wenn "noch" nicht gefunden, da in der CHain/Linear HT
+% noch weiter traversiert werden muss (aber ich das mit prefetches ebenfalls optimieren will und da dann nicht synchron langsam vorgehen will) ->
+% unterschied zwischen nullpointe,r optional value/definierter Value der dafür steht dass noch nicht gefunden UND Value (gefunden).
+
+% Finaler Versuch, mit wiederverwendbaren Coroutinen und niht mehr co_yield aber mit pointer, wo dann bei Erfolg in Pointer zurückgeschrieben wird.
+% -> Vorteil von wiederverwendbaren Coroutinen und einfacher handhabbar mit co_await auch wenn nicht gefunden oder "noch" nicht.
+
+
+
 %more reference why this is needed for databases
+
+
+% Benchmarking: Two different benchmarking setups are implemented. Google Benchmarks and perf-cpp from uni dortmund jmuehlig.
+% perf-ccp setup is more complex but superior to googl ebenchmarks in terms of flexibility and daatstructure creation and insertions.
+% Google Benchmarks was used for initial testing and debugging of the coroutines implementations as well as for verifying the results / benchmarks of perf-cpp.

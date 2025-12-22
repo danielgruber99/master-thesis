@@ -1,28 +1,97 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Cache Misses, Coroutines and Data Structures Fundamentals}\label{chapter:CacheCoroDSFundamentals}
-
-
-\section{Coroutine CPP Reference standardisation history}\label{section:Coroutines}
-Citation test~\parencite{latex}.
+\chapter{Coroutines, Data Structures and Cache Misses Fundamentals}\label{chapter:CacheCoroDSFundamentals}
 
 
 
-\subsection{Coroutine is a function}
-A C++ Coroutine is a generalization of a function. Additionally to normal functions, coroutines can suspend execution to be resumed later.
-Coroutines are defined with the keywords co\_await, co\_yield and co\_return.
+\section{C++ Coroutines}
+% \section{C++ Coroutines Coroutine CPP Reference standardisation history}\label{section:Coroutines}
+% Citation test~\parencite{latex}.
 
-Whereas a normal function has a single entry point - the Call operation - and a single exit point - the Return operation -, a coroutine can be suspended and resumed at multiple points in its execution.
+C++ Coroutines are available from the C++20 standard on, and from the C++23 standard there is a generator based on coroutines.
+% https://en.cppreference.com/w/cpp/language/coroutines
+
+A coroutine is a generalization of a function, being able additionally to normal functions to suspended execution and resumed it later on.
+Any function is a coroutine if its definition contains at least one of these three keywords:
+\begin{itemize}
+  \item co\_await - to suspend execution
+  \item co\_yield - to suspend execution and returning a value
+  \item co\_return - to complete exeuction and returning a value
+\end{itemize}
+C++ Coroutines are stackless, meaning by suspension and consecutively returning to the caller, the data of the coroutine is stored separately from the stack, namely on the heap.
+
+To illustrate the difference between coroutines and functions, this paragraph provides a background and general information of function calls and return:
+A normal function has a single entry point - the Call operation - and a single exit point - the Return operation.
+The Call operation creates an activation frame, suspends execution of the caller and transfers execution to the callee, where the caller is the invocating function and the callee is the invocated function.
+The Return operation returns the value in the return statement to the caller, destroys the activation frame and then resumes execution of the caller.
+These operations include calling conventions splitting the responsibilites of the caller and callee regarding saving register values to their activation frames.
+The activation frame is also commonly called stack frame, as the functions state (parameters, local variables) are stored on the stack.
+Normal Functions have strictly nested lifetimes, meaning they run synchronously from start to finish, allowing the stack to be a highly efficient memory allocation data-structure for allocation and freeing frames.
+The pointer pointing at the top of the stack is the **rsp** register on X86-64 CPU Architectures.
+
+Coroutines have, additionally to the call and return operation, three extra operations, namely suspend, resume and destroy.
+As coroutines can suspend execution without destroying the activation frame, as it may be resumed later, the activation frames are not strictly nested anymore.
+This requires that the coroutines state is saved to the heap, like illustrated in \autoref{fig:CallingACoroutine} where a function f() calls a coroutine c().
+% https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/n4680.pdf
+
+% The Suspend operation suspends execution of the coroutine at the current point within the function and transfers execution back to the caller or resumer without destroying the activation frame.
+% Any objects in-scope at the point of suspension remain alive after the coroutine execution is suspended.
+
+% Note that, like the Return operation of a function, a coroutine can only be suspended from within the coroutine itself at well-defined suspend-points.
+
+% The Resume operation resumes execution of a suspended coroutine at the point at which it was suspended. This reactivates the coroutine's activation frame.
+
+% The Destroy operation destroys the activation frame without resuming execution of the coroutine. Any objects that were in-scope at the suspend point will be destroyed.
+% Memory used to store the activation frame is freed.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/coroutines_drawing1_coro_call.png}
+  \caption{Calling a Coroutine}
+  % \quelle{\cite{ADaSurvey}}
+  \label{fig:CallingACoroutine}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/coroutines_drawing1_coro_call.png}
+  \caption{Calling a Coroutine}
+  % \quelle{\cite{ADaSurvey}}
+  \label{fig:CallingACoroutineHeap}
+\end{figure}
 
 
 
-When a coroutine is called, it does not execute its body immediately. Instead, it returns a special object known as a coroutine handle or promise object.
-This object represents the state of the coroutine and allows the caller to control its execution.
 
 
-and examples from Andreas Fertig highlghitng different concepts with  co\_yield and co\_await
+AWAITABLE
+An Awaitable has to provide the following three methods:
+\begin{lstlisting}[language=C, frame=single, caption={awaitable type}]
+    bool await_ready();
 
+    // one of:
+    void await_suspend(std::coroutine_handle<> caller_of_co_await);
+    bool await_suspend(std::coroutine_handle<> caller_of_co_await);
+    std::coroutine_handle<> await_suspend(std::coroutine_handle<> caller_of_co_await);
+
+    T await_resume();
+\end{lstlisting}
+
+
+PROMISE TYPE
+
+
+
+
+
+
+\cite{baker2018understanding}
+\cite{baker2017coroutines}
+\cite{baker2018promise}
+
+
+% and examples from Andreas Fertig highlghitng different concepts with  co\_yield and co\_await
 % https://www.reddit.com/r/cpp/comments/s980ik/a_highlevel_coroutine_explanation/
 
 
