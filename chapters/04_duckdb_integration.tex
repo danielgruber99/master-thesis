@@ -3,16 +3,43 @@
 
 \chapter{Integration of Coroutines in DuckDB}\label{chapter:DuckDBIntegration}
 
-\section{DuckDB Introduction}
+\section{DuckDB Overview}\label{section:DuckDBOverview}
+% https://dbdb.io/db/duckdb
+DuckDB is a relational embeddable analytical DBMS that focuses on supporting analytical query workloads (OLAP).
+Similar to SQLite, DuckDB prioritizes simplicity and ease of integration by eliminating external dependencies for compilation and run-time.
+DuckDB's columnar-vectorized query execution engine reduces the CPU cycles expended per individual value, processing large batches of values in one operation as a vector.
+This design choice optimizes DuckDB for analytical queries, and in embedded scenarios, it enables high-speed data transfer to and from the database.
+To provide transactional guarantees (ACID properties), DuckDB employs its custom bulk-optimized multi-version concurrency control (MVCC) and enables data to be stored in persistent, single-file databases.
+Additionally, DuckDB supports secondary indexes to speed up queries trying to find a single table entry.
+
+
+JOINS
+DuckDB supports several join algorithms, including hash join, sort-merge join, and index join.
+The system also implements join ordering optimization using dynamic programming and a greedy fallback for complex join graphs.
+It performs flattening of arbitrary subqueries and has a set of rewrite rules to simplify the expression tree, including common subexpression elimination and constant folding.
+The result is an optimized logical plan for the query, which is then transformed by the physical planner into the physical plan, selecting suitable implementations where applicable.
+In addition, DuckDB introduced a join algorithm called range join, which uses the interval encoding join (IEJoin) technique to handle range queries efficiently.
+IEJoin leverages min-max indexes to reduce the amount of data that needs to be scanned and uses SIMD instructions to further improve performance.
+Finally, DuckDB also supports an out-of-core hash-join for large tables that cannot fit in memory.
+
+QUERY COMPILATION
+DuckDB does not support Just-in-Time (JIT) compilation of SQL queries, but instead chooses to use a vectorized model.
+This is because JIT engines require large compiler libraries such as LLVM, which can create additional transitive dependencies and make the deployment and integration process more complex.
+DuckDB aims to simplify this process by avoiding external dependencies and using templates for code generation.
+
+QUERY EXECUTION
+DuckDB uses a vectorized interpreted execution engine that supports fixed-length types like integers as native arrays and variable-length values like strings as a native array of pointers into a separate string heap. To represent NULL values, DuckDB uses a separate bit vector that is only present if NULL values appear in the vector.
+DuckDB supports a vectorized pull-based model that is also known as "vector volcano". In this model, query execution starts by pulling the first chunk of data from the root node of the physical plan. A chunk is a horizontal subset of a result set, query intermediate, or base table. This node will recursively pull chunks from child nodes, eventually arriving at a scan operator that produces chunks by reading from the persistent tables.
+The process continues until the chunk arriving at the root is empty, indicating that the query has been completed.
+DuckDB uses a vectorized processing model that processes batches of columns at a time, which is optimized for CPU cache locality, suitable for SIMD instructions and pipelining, and has small intermediates that ideally fit in L1 cache.
+The system contains an extensive library of vector operations that support the relational operators, and this library expands code for all supported data types using C++ code templates.
+
+\section{Understanding the Linear Hashtable in DuckDB}\label{section:UnderstandingLinearHashtableDuckDB}
+% Citation test~\parencite{latex}.
 
 
 
-\section{Understanding the implemented linear Hashtable}
-Citation test~\parencite{latex}.
-
-
-
-\section{Integration of Coroutines in DuckDB}
+\section{Integration of Coroutines in DuckDB}\label{section:IntegrationCoroutinesDuckDB}
 
 DuckDB integration: linear probing hashtabale where if same key it is chained.
 
@@ -23,5 +50,17 @@ has to be done in Join phase of the hastable (which is divided in different data
 In this thread coroutines can easily integrated as they are asynchronoulsy called and ...
 
 
-\section{Results of timings}
+\section{Benchmarking}\label{section:Benchmarking}
+
+\subsection{Results per machine}\label{subsection:ResultsPerMachine}
+
+
+\subsection{Results per compiler}\label{subsection:ResultsPerCompiler}
+
+
+\subsection{results across machines and compiler}\label{subsection:ResultsAcrossMachinesAndCompiler}
+
+
+\subsection{results per query}\label{subsection:ResultsPerQuery}
+
 

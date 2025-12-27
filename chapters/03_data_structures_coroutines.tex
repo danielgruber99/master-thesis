@@ -1,7 +1,7 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Using Coroutines in different DataStructures for hiding cache-misses}\label{chapter:CoroInDatastructures}
+\chapter{Using Coroutines and Cache Prefetching in different DataStructures for hiding cache-misses}\label{chapter:CoroInDatastructures}
 
 \section{Different coroutine approaches and their trade-offs}
 Citation test~\parencite{latex}.
@@ -9,6 +9,20 @@ Citation test~\parencite{latex}.
 First approach was simple: create a coroutine each time from s cratch for lookup.
 Bad performance, re-use coroutines so the creatio overhead is minimal and maybe create 5-20 coroutines and reuse them for all the lookups.
 First with co\_yield concept and caller has to resume the coroutine, but for caller it is complex to distinguish if
+
+\section{Why CCoroutines and cache prefetching?}
+not amac and gp
+
+\section{Cache Prefetching}
+
+
+% • Describing different methods: my method was kind of vorgegeben, nur warum nicht amac und gp
+% • Indicating a specific method:
+% • Giving reasons why a particular method was adopted
+% • Indicating sample size and characteristics
+% • Indicating reasons for sample characteristics
+% • Describing the process: Indicating problems or limitations
+
 
 
 \section{Coroutines in chaining Hashtable}
@@ -26,6 +40,25 @@ First with co\_yield concept and caller has to resume the coroutine, but for cal
 \subsection{Implementation}
 \subsection{Measurements}
 \subsection{Results}%also across different hardware architectures
+
+
+
+% • Reference to aim/method
+% • Location and summary statements
+% • Highlighting significant data in a table/chart
+% • Statements of positive result
+% • Statements of negative result
+% • Highlighting significant, interesting, or surprising
+% results
+% • Reporting results from questionnaires and
+% interviews
+
+
+
+
+
+
+
 
 
 % Verlauf von meiner Coroutines usage:

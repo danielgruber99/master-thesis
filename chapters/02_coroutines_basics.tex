@@ -1,13 +1,25 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
+
+
+% • Describing different methods
+% • Indicating a specific method
+% • Giving reasons why a particular method was adopted
+% • Indicating sample size and characteristics
+% • Indicating reasons for sample characteristics
+% • Describing the process: Indicating problems or limitations
+
+
+%%% ====== COROUTINES BASICS =======================
 \chapter{Coroutines and Cache Misses Fundamentals}\label{chapter:CacheCoroDSFundamentals}
 
+%%% ====== COROUTINES =======================
 \section{C++ Coroutines}
 % \section{C++ Coroutines Coroutine CPP Reference standardisation history}\label{section:Coroutines}
 % Citation test~\parencite{latex}.
 
-
+%%% ------- Intro to COROUTINES ------------------------
 \subsection{Introduction to Coroutines}
 C++ Coroutines are available in the std namespace from the C++20 standard on, and from the C++23 standard there is a generator implementation based on the C++ 20 coroutine concept.
 % https://en.cppreference.com/w/cpp/language/coroutines
@@ -100,7 +112,7 @@ This creates a new stack-frame that records the return-address of the caller to 
 \cite{baker2017coroutines}
 
 
-
+%%% ------- Execution of a Coroutine ------------------------
 \subsection{Execution of a Coroutine}
 % https://en.cppreference.com/w/cpp/language/coroutines.html, and lewis baker
 
@@ -120,11 +132,48 @@ As partially illustrated in \autoref{fig:CallingACoroutineHeap}, when a coroutin
 - calls promise.initial\_suspend() and co\_awaits its result. Typically returns std::suspend\_always (lazily-started) or std::suspend\_never (eagerly-started).
 - when co\_await promise.initial\_suspend() resumes, starts executing the body of the coroutine.
 
+\begin{lstlisting}[language=C, frame=single, caption={coroutine execution}, label={lst:coroutine_execution}]
+{
+  co_await promise.initial_suspend();
+  try
+  {
+    <body-statements>
+  }
+  catch (...)
+  {
+    promise.unhandled_exception();
+  }
+FinalSuspend:
+  co_await promise.final_suspend();
+}
+\end{lstlisting}
+
+
 When a coroutine reaches a suspension point, co\_await or co\_yield, the return object obtained earlier is returned to the caller/resumer. %, after implicit conversion to the return type of the coroutine, if necessary.
 When encountering the co\_return statement, it calls either promise.return\_void()
 or promise.return\_value(expr) depending on whether an expression is provided and whether this expression is non-void.
 Furthermore, all variable with automatic storage duration are destroyed in reverse order of their creation and finally calling promise.final\_suspend() and co\_awaiting its result.
 When falling off the end of the coroutine, meaning there is no co\_return statement, it is equivalent to a co\_return; statement.
+
+% Returning from the coroutine using co_return
+% When the coroutine reaches a co_return statement, it is translated into either a call to promise.return_void() or promise.return_value(<expr>) followed by a goto FinalSuspend;.
+
+% The rules for the translation are as follows:
+
+% co_return;
+% -> promise.return_void();
+% co_return <expr>;
+% -> <expr>; promise.return_void(); if <expr> has type void
+% -> promise.return_value(<expr>); if <expr> does not have type void
+% The subsequent goto FinalSuspend; causes all local variables with automatic storage duration to be destructed in reverse order of construction before then evaluating co_await promise.final_suspend();.
+
+% Note that if execution runs off the end of a coroutine without a co_return statement then this is equivalent to having a co_return; at the end of the function body. In this case, if the promise_type does not have a return_void() method then the behaviour is undefined.
+
+% If either the evaluation of <expr> or the call to promise.return_void() or promise.return_value() throws an exception then the exception still propagates to promise.unhandled_exception() (see below).
+
+
+
+
 
 %% uncaught expression
 % If the coroutine ends with an uncaught exception, it performs the following:
@@ -141,219 +190,263 @@ When falling off the end of the coroutine, meaning there is no co\_return statem
 % the size of coroutine frame is known at the call site. In that case, coroutine state is embedded in the caller's stack frame (if the caller is an ordinary function) or coroutine state (if the caller is a coroutine).
 % If allocation fails, the coroutine throws std::bad\_alloc, unless the Promise type defines the member function Promise::get\_return\_object\_on\_allocation\_failure(). If that member function is defined, allocation uses the nothrow form of operator new and on allocation failure, the coroutine immediately returns the object obtained from Promise::get\_return\_object\_on\_allocation\_failure() to the caller, e.g.:
 
-
+%%% ------- Implementation details of a coroutine ------------------------
 \subsection{Implementation details/concepts of a coroutine}
-Awaitable and Promise Type concepts
+% \begin{lstlisting}[language=C, frame=single, caption={minimum coroutine co_yield example}, label={lst:minimum_coroutine_co_yield_example}]
+%   struct Task {
+%     struct promise_type {
+%       int _val{};
+%       Task get_return_object() { return Task{this}; }
+%       std::suspend_never initial_suspend() { return {}; }
+%       std::suspend_always final_suspend() noexcept { return {}; }
+%       std::suspend_always yield_value(int value) { _val = value; return {}; }
+%       void unhandled_exception() { }
+%       };
 
-Two interfaces:
+%       std::coroutine_handle<promise_type> h{};  // coroutine handle
+
+%       explicit Task(promise_type* p) : h{std::coroutine_handle<promise_type>::from_promise(*p)}{}
+%       Task(Task&& rhs) : h{std::exchange(rhs.h, nullptr)} { }
+%       ~Task() { if (h) { h.destroy(); } }
+% };
+% Task Coroutine() {
+%     for (int i = 0; i < 5; ++i) {
+%       co_yield i;
+%     }
+% }
+% \end{lstlisting}
+The following is a minimum coroutine example using co\_await, illustrated in \autoref{lst:minimum_coroutine_co_await_example}.
+The Task struct is a the coroutine wrapper holding the coroutine handle and the promise\_type struct defining the promise type and thus, the behavior of the coroutine.
+The function Task Coroutine(int num\_steps) is the coroutine function containing a co\_await expression suspending the coroutine for num\_steps times.
+And as explained in previous subsection, also see \autoref{lst:coroutine_execution}, when another function, e.g. main(), calls the coroutine, the coroutine frame is allocated on the heap, the promise object is constructed and initial\_suspend() is called.
+When the coroutine hits the co\_await expression, it suspends execution and returns control to the caller until it is resumed again.
+The coroutine results in the output of "Coroutine at step i" and "Resuming coroutine" for num\_steps times, in this case from 0 to 4, as initial\_suspend() is set to suspend\_never and thus, the coroutine starts executing immediately when called.
+If it it set to suspend\_always, the coroutine initially pauses before starting work (lazily computed coroutine) and results in "Resuming coroutine" being printed first followed by "Coroutine at step i"  num\_steps times.
+\begin{lstlisting}[language=C, frame=single, caption={minimum coroutine co\_await example}, label={lst:minimum_coroutine_co_await_example}]
+  struct Task {
+    struct promise_type {
+        Task get_return_object() { return Task{this}; }
+        std::suspend_always initial_suspend() { return {}; }
+        std::suspend_never final_suspend() noexcept { return {}; }
+        void unhandled_exception() { }
+        void return_void() { }
+      };
+
+      std::coroutine_handle<promise_type> h{};  // coroutine handle
+
+      explicit Task(promise_type* p) : h{std::coroutine_handle<promise_type>::from_promise(*p)}{}
+      Task(Task&& rhs) : h{std::exchange(rhs.h, nullptr)} { }
+      ~Task() { if (h) { h.destroy(); } }
+};
+Task PrintCoroStep(int num_steps) {
+    for (int i = 0; i < num_steps; ++i) {
+      std::cout << "Coroutine at step " << i << "\n";
+      co_await std::suspend_always{};  // if suspend_never, coro would never pause
+    }
+    co_return;  // equivalent to omitting this line
+}
+int main() {
+    Task task = PrintCoroStep(5);
+    for (int i = 0; i < 5; ++i) {
+      std::cout << "Resuming coroutine\n";
+      task.h.resume();
+    }
+}
+\end{lstlisting}
+In this simple example, trivial awaitables std::suspend\_always and std::suspend\_never, defined in the standard library, are used to control the suspension behavior of the coroutine at the initial and co\_await suspension points.
+The implementation of suspend\_always is shown in \autoref{lst:suspend_always} returning false in await\_ready(), indicating that the await expression always suspends and waits for a value (is not ready).
+The suspend\_never implementation is analog with the only difference of returning true in await\_ready(), indicating that the await expression never suspends (is always ready).
+\begin{lstlisting}[language=C, frame=single, caption={suspend\_always implementation}, label={lst:suspend_always}]
+struct suspend_always {
+  constexpr bool await_ready() const noexcept{return false;}
+  constexpr void await_suspend(std::coroutine_handle <>) const noexcept {}
+  constexpr void await_resume() const noexcept {}
+};
+\end{lstlisting}
+
+For more customization, more complex awaitabletypes can be implemented, requiring to implement these three methods listed in \autoref{lst:awaitable_type}.
+\begin{lstlisting}[language=C, frame=single, caption={awaitable type}, label={lst:awaitable_type}]
+  bool await_ready();
+
+  // one of:
+  void await_suspend(std::coroutine_handle<> h);
+  bool await_suspend(std::coroutine_handle<> h);
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> h);
+
+  T await_resume();
+\end{lstlisting}
+
+In the $ co\_await expr; $ operator the expression, the awaiter type, is firstly converted to an awaitable.
+If the promise\_type type of the current coroutine has a member function await\_transform, then the awaitable is obtained by calling promise.await\_transform(expr), illustrated in \autoref{lst:pseudo_code_which_awaiter_awaitable}.
+Otherwise, the awaitable is expr as-is.
+
+\begin{lstlisting}[language=Python, frame=single, caption={Pseudo Code for deciding which awaiter/awaitable is used}, label={lst:pseudo_code_which_awaiter_awaitable}]
+func get_awaitable(promise_type& promise, T&& expr){
+  if P has member function await_transform:
+    return promise.await_transform(expr);
+  else
+    return expr;
+}
+
+func get_awaiter(awaitable){
+  if awaitable has member operator co_await:
+    return awaitable.operator co_await();
+  else if awaitable has non-member operator co_await:
+    return operator co_await(awaitable);
+  else:
+    return awaitable;
+}
+\end{lstlisting}
+
+Then, the awaiter object is obtained like illustrated in func get\_awaiter in \autoref{lst:pseudo_code_which_awaiter_awaitable}.
+If no operator co\_await is defined, the awaitable itself is the awaiter which implicates that a type can be an awaitable and an awaiter type simultaneously.
+
+Then, awaiter.await\_ready() is called , The coroutine is suspended awaiter.await\_suspend(handle) is called, where handle is the coroutine handle representing the current coroutine.
+Inside that function, the suspended coroutine state is observable via that handle,
+if await\_suspend returns void, control is immediately returned to the caller/resumer of the current coroutine (this coroutine remains suspended), otherwise
+if await\_suspend returns bool, the value true returns control to the caller/resumer of the current coroutine the value false resumes the current coroutine.
+if await\_suspend returns a coroutine handle for some other coroutine, that handle is resumed (by a call to handle.resume())
+Finally, awaiter.await\_resume() is called (whether the coroutine was suspended or not), and its result is the result of the whole co\_await expr expression.
+
+If the coroutine was suspended in the co\_await expression, and is later resumed, the resume point is immediately before the call to awaiter.await\_resume().
+
+Additionally to suspending the coroutine, the co\_yield expression returns a value to the caller and is
+equivalent to co\_await promise.yield\_value(expr).
+However, to define the type to return, the promise\_type has to implement the yield\_value() function.
+
+
+Besides the awaiter/awaitable concept explained in the previous paragraphs, there is also the promise type concept.
+These are the two main interfaces, defined by the coroutine Type Specification (TS), for customizing the behavior of coroutines and co\_await expressions:
 \begin{itemize}
-  \item Promise Type
-  \item Awaitable / Awaiter
+  \item Awaiter / Awaitable: specifies methods that controls the semantics of co\_await expression. When a value is co\_awaited, the awaitable object allows to specify whether to suspend,
+   execute some logic after suspensions (for asynchronously completed operations) and/or execute some logic after the coroutine resumes.
+  \item Promise Type: specifies methods for customising the behavior of a coroutine, e.g. the behavior of any co\_await or co\_yield expression inside the coroutine body.
 \end{itemize}
 
-co\_await;
-% The unary operator co_await suspends a coroutine and returns control to the caller.
 
-% co_await expr
-% A co_await expression can only appear in a potentially-evaluated expression within a regular function body (including the function body of a lambda expression), and cannot appear
+The promise\_type struct has to be implemented in the coroutine wrapper type, which can be named arbitrarily, e.g. Task in \autoref{lst:minimum_coroutine_co_await_example}.
+It has to follow the scheme illustrated in \autoref{lst:promise_type}.
+% A coroutine in C++ is an finite state machine (FSM) that can be controlled and customized by the promise_type.
+\begin{lstlisting}[language=C, frame=single, caption={Promise Type}, label={lst:promise_type}]
+struct promise_type{
+  // required methods
+  ReturnType get_return_object();
+  std::suspend_always initial_suspend();
+  std::suspend_always final_suspend() noexcept;
+  void unhandled_exception();
 
-% in a handler,
-% in a declaration statement, unless it appears in an initializer of that declaration statement,
-% in the simple declaration of an init-statement (see if, switch, for and [[../range-for|range-for]]), unless it appears in an initializer of that init-statement ﻿,
-% in a default argument, or
-% in the initializer of a block-scope variable with static or thread storage duration.
-% A co_await expression cannot be a potentially-evaluated subexpression of the predicate of a contract assertion.
+  // depending on ReturnType
+  void return_void(); // if ReturnType is void
+  void return_value(T value); // if ReturnType is T
 
-% (since C++26)
-% First, expr is converted to an awaitable as follows:
-
-% if expr is produced by an initial suspend point, a final suspend point, or a yield expression, the awaitable is expr, as-is.
-% otherwise, if the current coroutine's Promise type has the member function await_transform, then the awaitable is promise.await_transform(expr).
-% otherwise, the awaitable is expr, as-is.
-% Then, the awaiter object is obtained, as follows:
-
-% if overload resolution for operator co_await gives a single best overload, the awaiter is the result of that call:
-% awaitable.operator co_await() for member overload,
-% operator co_await(static_cast<Awaitable&&>(awaitable)) for the non-member overload.
-% otherwise, if overload resolution finds no operator co_await, the awaiter is awaitable, as-is.
-% otherwise, if overload resolution is ambiguous, the program is ill-formed.
-% If the expression above is a prvalue, the awaiter object is a temporary materialized from it. Otherwise, if the expression above is a glvalue, the awaiter object is the object to which it refers.
-
-% Then, awaiter.await_ready() is called (this is a short-cut to avoid the cost of suspension if it's known that the result is ready or can be completed synchronously). If its result, contextually-converted to bool is false then
-
-% The coroutine is suspended (its coroutine state is populated with local variables and current suspension point).
-% awaiter.await_suspend(handle) is called, where handle is the coroutine handle representing the current coroutine. Inside that function, the suspended coroutine state is observable via that handle, and it's this function's responsibility to schedule it to resume on some executor, or to be destroyed (returning false counts as scheduling)
-% if await_suspend returns void, control is immediately returned to the caller/resumer of the current coroutine (this coroutine remains suspended), otherwise
-% if await_suspend returns bool,
-% the value true returns control to the caller/resumer of the current coroutine
-% the value false resumes the current coroutine.
-% if await_suspend returns a coroutine handle for some other coroutine, that handle is resumed (by a call to handle.resume()) (note this may chain to eventually cause the current coroutine to resume).
-% if await_suspend throws an exception, the exception is caught, the coroutine is resumed, and the exception is immediately re-thrown.
-% Finally, awaiter.await_resume() is called (whether the coroutine was suspended or not), and its result is the result of the whole co_await expr expression.
-
-% If the coroutine was suspended in the co_await expression, and is later resumed, the resume point is immediately before the call to awaiter.await_resume().
-
-% Note that the coroutine is fully suspended before entering awaiter.await_suspend(). Its handle can be shared with another thread and resumed before the await_suspend() function returns. (Note that the default memory safety rules still apply, so if a coroutine handle is shared across threads without a lock, the awaiter should use at least release semantics and the resumer should use at least acquire semantics.) For example, the coroutine handle can be put inside a callback, scheduled to run on a threadpool when async I/O operation completes. In that case, since the current coroutine may have been resumed and thus executed the awaiter object's destructor, all concurrently as await_suspend() continues its execution on the current thread, await_suspend() should treat *this as destroyed and not access it after the handle was published to other threads.
-
-
-AWAITABLE
-% Note: the awaiter object is part of coroutine state (as a temporary whose lifetime crosses a suspension point) and is destroyed before the co_await expression finishes. It can be used to maintain per-operation state as required by some async I/O APIs without resorting to additional dynamic allocations.
-The standard library defines two trivial awaitables: std::suspend\_always and std::suspend\_never.
-An Awaitable has to provide the following three methods:
-\begin{lstlisting}[language=C, frame=single, caption={awaitable type}]
-    bool await_ready();
-
-    // one of:
-    void await_suspend(std::coroutine_handle<> caller_of_co_await);
-    bool await_suspend(std::coroutine_handle<> caller_of_co_await);
-    std::coroutine_handle<> await_suspend(std::coroutine_handle<> caller_of_co_await);
-
-    T await_resume();
-\end{lstlisting}
-
-
-
-Pseudo Code for deciding which awaiter/awaitable is used.
-\begin{lstlisting}[language=, frame=single, caption={awaitable type}]
-func get_awaitable(promise_type& promise, T&& expr)
-{
-  if P has await_transform member function:
-    return promise.await_transform(static_cast<T&&>(expr));
-  else
-    return static_cast<T&&>(expr);
-}
-
-func get_awaiter(Awaitable&& awaitable)
-{
-  if Awaitable has member operator co_await
-    return static_cast<Awaitable&&>(awaitable).operator co_await();
-  else if Awaitable has non-member operator co_await
-    return operator co_await(static_cast<Awaitable&&>(awaitable));
-  else
-    return static_cast<Awaitable&&>(awaitable);
+  // optional methods
+  auto await_transform(U&& value); // customize co_await behavior
+  auto yield_value(V value); // customize co_yield behavior
 }
 \end{lstlisting}
 
+The Promise type is determined by the compiler from the return type of the coroutine using std::coroutine\_traits.
 
 
 
-\begin{lstlisting}[language=C, frame=single, caption={awaitable type}]
-  struct Task {
-    struct promise_type;  // forward declaration
-    std::coroutine_handle<promise_type> h{};  // coroutine handle
-    // constructor, move constructor, destructor
-    explicit Task(promise_type* p) : h{std::coroutine_handle<promise_type>::from_promise(*p)}{}
-    Task(Task&& rhs) : h{std::exchange(rhs.h, nullptr)}{}
-    ~Task() {if (h) {h.destroy();}}
-    // promise type
-    struct promise_type {
-        int _val{};
-        Task get_return_object() { return Task{this}; }
-        std::suspend_never initial_suspend() { return {}; }
-        std::suspend_always final_suspend() noexcept { return {}; }
-        std::suspend_always yield_value(int value) {_val = value; return {};}
-        void unhandled_exception() { }
-    };
-};
-\end{lstlisting}
+The class template coroutine\_handle can be used to refer to a suspended or executing coroutine.
+
+% COROUTINE HANDLE!!
+% You may have noticed the use of the coroutine\_handle<P> type that is passed to the await\_suspend() call of a co\_await expression.
+
+% This type represents a non-owning handle to the coroutine frame and can be used to resume execution of the coroutine or to destroy the coroutine frame. It can also be used to get access to the coroutine’s promise object.
+
+% The coroutine_handle type has the following (abbreviated) interface:
 
 
-await\_transform example
+CO\_RETURN operator
+% https://www.scs.stanford.edu/~dm/blog/c++-coroutines.html
 
-\begin{lstlisting}[language=C, frame=single, caption={awaitable type}]
-// #include <coroutine> #include <iostream> #include <utility>
-struct Chat {
-    struct promise_type {
-        std::string _msgOut{}, _msgIn{};
+% \begin{lstlisting}[language=C, frame=single, caption={coroutine chat with await\_transform example}, label={lst:coroutine_chat_await_transform_example}]
+% // #include <coroutine> #include <iostream> #include <utility>
+% struct Chat {
+%     struct promise_type {
+%         std::string _msgOut{}, _msgIn{};
 
-        void unhandled_exception()noexcept{};
-        Chat get_return_object() {return Chat{this};}
-        std::suspend_always initial_suspend() { return {}; }
-        std::suspend_always final_suspend() noexcept { return {}; }
-        std::suspend_always yield_value(std::string msg) {
-          _msgOut = std::move(msg); return {};}
-        void return_value(std::string msg) noexcept {
-          _msgOut = std::move(msg); }
-        auto await_transform(std::string) noexcept {
-            struct awaiter {
-                promise_type& pt;
-                constexpr bool await_ready() const noexcept {return true;}
-                void await_suspend(std::coroutine_handle<>)const noexcept{}
-                std::string await_resume() const noexcept {
-                  return std::move(pt._msgIn); }
-            };
-            return awaiter{*this};
-        }
-    };
-    std::coroutine_handle<promise_type> _hdl;
-    explicit Chat(promise_type* p) : _hdl{
-      std::coroutine_handle<promise_type>::from_promise(*p)}{}
-    Chat(Chat&& rhs) : _hdl{std::exchange(rhs._hdl, nullptr)} {}
-    ~Chat() {if (_hdl) {_hdl.destroy();}}
+%         void unhandled_exception()noexcept{};
+%         Chat get_return_object() {return Chat{this};}
+%         std::suspend_always initial_suspend() { return {}; }
+%         std::suspend_always final_suspend() noexcept { return {}; }
+%         std::suspend_always yield_value(std::string msg) {
+%           _msgOut = std::move(msg); return {};}
+%         void return_value(std::string msg) noexcept {
+%           _msgOut = std::move(msg); }
+%         auto await_transform(std::string) noexcept {
+%             struct awaiter {
+%                 promise_type& pt;
+%                 constexpr bool await_ready() const noexcept {return true;}
+%                 void await_suspend(std::coroutine_handle<>)const noexcept{}
+%                 std::string await_resume() const noexcept {
+%                   return std::move(pt._msgIn); }
+%             };
+%             return awaiter{*this};
+%         }
+%     };
+%     std::coroutine_handle<promise_type> _hdl;
+%     explicit Chat(promise_type* p) : _hdl{
+%       std::coroutine_handle<promise_type>::from_promise(*p)}{}
+%     Chat(Chat&& rhs) : _hdl{std::exchange(rhs._hdl, nullptr)} {}
+%     ~Chat() {if (_hdl) {_hdl.destroy();}}
 
-    std::string listen() {
-        if(not _hdl.done()) {_hdl.resume();}
-        return std::move(_hdl.promise()._msgOut);}
-    void answer(std::string msg) {
-        _hdl.promise()._msgIn = msg;
-        if(not _hdl.done()) {_hdl.resume();}}
-};
+%     std::string listen() {
+%         if(not _hdl.done()) {_hdl.resume();}
+%         return std::move(_hdl.promise()._msgOut);}
+%     void answer(std::string msg) {
+%         _hdl.promise()._msgIn = msg;
+%         if(not _hdl.done()) {_hdl.resume();}}
+% };
 
-Chat Fun(){
-    co_yield "Hello\n";
-    std::cout << co_await std::string{};
-    co_return "Here!\n";}
-int main(){
-    Chat chat = Fun();
-    std::cout << chat.listen();
-    chat.answer("Where are you?\n");
-    std::cout << chat.listen();
-}
-\end{lstlisting}
-
-
-
-
-co\_yield expression returns a value to the caller and suspends the current coroutine: it is the common building block of resumable generator functions.
-equivalent to co\_await promise.yield\_value(expr), but additionally you need to specify yield\_value() function in the promise type.
+% Chat Fun(){
+%     co_yield "Hello\n";
+%     std::cout << co_await std::string{};
+%     co_return "Here!\n";}
+% int main(){
+%     Chat chat = Fun();
+%     std::cout << chat.listen();
+%     chat.answer("Where are you?\n");
+%     std::cout << chat.listen();
+% }
+% \end{lstlisting}
 
 
+\cite{baker2018understanding}
+\cite{baker2018promise}
 
 
-
-\subsection{Hands on example} % example going through guide, hands on, step by step explanation, detailed explanation of how coroutines work internally
-
-
-% \subsection{Examples}
-% \paragraph{Minimum viable Coroutine} %// generator example simplified
-% \paragraph{Advanced Example} %//Chat example with await\_transform
-% \paragraph{Coroutine with custom allocator} %// custom allocator example // not necessary for this thesis
-
-
-
-% \subsection{The co\_await, co\_return and co\_yield operators}
-% % and examples from Andreas Fertig highlghitng different concepts with  co\_yield and co\_await
-% % https://www.reddit.com/r/cpp/comments/s980ik/a_highlevel_coroutine_explanation/
-
-
-% awaitable (and awaiter) concept and promiseType
-
-
-
-% PROMISE TYPE
-
-
-
-% \cite{baker2018understanding}
-% \cite{baker2018promise}
-
+%%% ------ Comparison to other alternative solutions to hide cache misses ------------------------
 \subsection{Comparison to other alternative solutions to hide cache misses}
-AMAC, Group Prefetching  // see different papers
+AMAC, Group Prefetching
 coro is better, not performance wise but easier to use, more general
+
 
 %%% ====== CACHE MISSES =======================
 \section{Cache Misses}\label{section:CacheMisses}
 \subsection{What are cache misses?}
+Cache misses are a fundamental concept in computer architecture, representing instances where requested data is not found in the cache, necessitating a slower access to main memory. They are typically categorized into three main types: compulsory misses, capacity misses, and conflict misses.
+ Compulsory misses occur on the first access to a block, as the data has not yet been loaded into the cache regardless of cache design.
+ Capacity misses happen when the cache is too small to hold all the data actively used by a program during execution, meaning the working set exceeds the cache size.
+ This type of miss is directly related to the cache's capacity and can be reduced by increasing the cache size.
+ Conflict misses, also known as interference misses, occur when multiple memory addresses map to the same cache set, leading to evictions of useful data even though the cache is not full.
+ These misses are influenced by the cache's associativity; increasing associativity can reduce conflict misses, especially in smaller caches.
+
+The performance of a cache is often measured using metrics such as the cache miss rate, which is the percentage of memory requests that result in a cache miss, calculated as the total number of misses divided by the total number of memory requests over a given time interval.
+ The miss rate is inversely related to the hit rate, with the sum of the two equaling 100%.
+ The miss rate is a critical indicator for evaluating system performance and can be used to guide optimizations in both hardware and software. For example, in multi-tasking environments, the last-level cache (LLC) miss rate is commonly used to assess an application’s contention characteristics and sensitivity to resource competition.
+ However, while the LLC miss rate is effective in distinguishing CPU-bound from memory-bound applications, it is less reliable for predicting the degree of contention or sensitivity in memory-bound workloads.
+
+Research and literature have explored various strategies to mitigate cache misses. Increasing cache capacity can reduce both capacity and conflict misses, although it does not affect compulsory misses.
+ Adjusting block size can also impact miss rates; larger blocks may reduce compulsory misses due to spatial locality but can increase conflict misses by reducing the number of sets in a fixed-size cache.
+ Techniques such as loop nest optimization and virtual coloring are used in software to minimize conflict misses by ensuring that frequently accessed data does not map to the same cache set.
+ Additionally, cache replacement policies like LRU (Least Recently Used) and write strategies such as write-back or write-through are designed to manage data in the cache efficiently, with the goal of minimizing the number of misses and their associated penalties.
+
+The study of cache misses continues to be an active area of research, particularly in the context of modern multi-core and heterogeneous systems where contention and memory access patterns are complex. Performance monitoring units (PMUs) are often used to collect data on cache misses, enabling the development of contention-aware runtime systems and scheduling algorithms.
+ Despite the availability of these tools, the challenge remains in accurately predicting the impact of cache misses on overall system performance, especially for memory-intensive applications.
+
 
 
 
@@ -377,10 +470,14 @@ B+ Tree
 
 
 
+
+
 %%% ====== COMPUTER ARCHITECTURE =======================
 \section{Computer Architecture}\label{section:ComputerArchitecture}
 \subsection{Different Computer Architectures, x86-64, amd, apple, mips}
+
 \subsection{Introduction to computer achitecture and storage layout}
+
 \subsection{Different Compilers - Gnu vs Clang}
 
 
