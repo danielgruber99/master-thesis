@@ -1,0 +1,61 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+% • Describing different methods: my method was kind of vorgegeben, nur warum nicht amac und gp
+% • Indicating a specific method:
+% • Giving reasons why a particular method was adopted
+% • Indicating sample size and characteristics
+% • Indicating reasons for sample characteristics
+% • Describing the process: Indicating problems or limitations
+
+\chapter{Approach to hide cache misses with coroutines}\label{chapter:ApproachMethod}
+
+\section{Existing Techniques}
+Group Prefetching and AMAC
+
+\section{Why Coroutines and cache prefetching?}
+% Verlauf von meiner Coroutines usage:
+
+% erst für jeden part eine coroutine erstellt und wiedre gelöscht -> ineffizient, weil erstellen von coroutinen viel Zeit und stack storage braucht.
+
+% Dann mit N (e.g. =5,10,...) wiederverwendbaren Coroutinen, die erst zerstört werden, wenn alles durch, und imt co_yield und co_await zu suchenden Key gegeben
+% und coroutine yielded (nicht mehr returned) Value zurück, wenn gefunden! (Problem: Unterscheidung zwischen noch nicht gefunden in HT, weil noch weiter in chaining durchtraversieren oder in linear
+% weiter durchspringen muss, vs schon gefunden vs. nicht in Hashtable da (also nicht auffindbar, da Key nicht existiert)).
+% Handhabarkeit schwierig, da wenn nicht gefunden, dann nullpointer zurück, wenn gefunden dann obviously den Value, aber was wenn "noch" nicht gefunden, da in der CHain/Linear HT
+% noch weiter traversiert werden muss (aber ich das mit prefetches ebenfalls optimieren will und da dann nicht synchron langsam vorgehen will) ->
+% unterschied zwischen nullpointe,r optional value/definierter Value der dafür steht dass noch nicht gefunden UND Value (gefunden).
+
+% Finaler Versuch, mit wiederverwendbaren Coroutinen und niht mehr co_yield aber mit pointer, wo dann bei Erfolg in Pointer zurückgeschrieben wird.
+% -> Vorteil von wiederverwendbaren Coroutinen und einfacher handhabbar mit co_await auch wenn nicht gefunden oder "noch" nicht.
+
+
+
+
+\section{scheduler for multiple coroutines}
+
+\section{testing on different machines and compilers and data structures}
+
+
+\section{Different coroutine approaches and their trade-offs}
+Citation test~\parencite{latex}.
+
+First approach was simple: create a coroutine each time from scratch for lookup.
+Bad performance, re-use coroutines so the creatio overhead is minimal and maybe create 5-20 coroutines and reuse them for all the lookups.
+First with co\_yield concept and caller has to resume the coroutine, but for caller it is complex to distinguish if
+
+\section{Why Coroutines and cache prefetching?}
+not amac and gp
+
+\section{Cache Prefetching}
+
+
+
+
+
+\section{Benchmarking Setup}
+doing this on different compilers and machines
+
+% Benchmarking: Two different benchmarking setups are implemented. Google Benchmarks and perf-cpp from uni dortmund jmuehlig.
+% perf-ccp setup is more complex but superior to googl ebenchmarks in terms of flexibility and daatstructure creation and insertions.
+% Google Benchmarks was used for initial testing and debugging of the coroutines implementations as well as for verifying the results / benchmarks of perf-cpp.
+

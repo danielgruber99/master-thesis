@@ -15,12 +15,12 @@
 \chapter{Coroutines and Cache Misses Fundamentals}\label{chapter:CacheCoroDSFundamentals}
 
 %%% ====== COROUTINES =======================
-\section{C++ Coroutines}
+\section{C++ Coroutines}\label{sec:CppCoroutines}
 % \section{C++ Coroutines Coroutine CPP Reference standardisation history}\label{section:Coroutines}
 % Citation test~\parencite{latex}.
 
 %%% ------- Intro to COROUTINES ------------------------
-\subsection{Introduction to Coroutines}
+\subsection{Introduction to Coroutines}\label{subsec:IntroductionToCoroutines}
 C++ Coroutines are available in the std namespace from the C++20 standard on, and from the C++23 standard there is a generator implementation based on the C++ 20 coroutine concept.
 % https://en.cppreference.com/w/cpp/language/coroutines
 
@@ -113,7 +113,7 @@ This creates a new stack-frame that records the return-address of the caller to 
 
 
 %%% ------- Execution of a Coroutine ------------------------
-\subsection{Execution of a Coroutine}
+\subsection{Execution of a Coroutine}\label{subsec:ExecutionOfACoroutine}
 % https://en.cppreference.com/w/cpp/language/coroutines.html, and lewis baker
 
 Each coroutine is associated with a promise object, a coroutine handle and the coroutine state.
@@ -191,7 +191,7 @@ When falling off the end of the coroutine, meaning there is no co\_return statem
 % If allocation fails, the coroutine throws std::bad\_alloc, unless the Promise type defines the member function Promise::get\_return\_object\_on\_allocation\_failure(). If that member function is defined, allocation uses the nothrow form of operator new and on allocation failure, the coroutine immediately returns the object obtained from Promise::get\_return\_object\_on\_allocation\_failure() to the caller, e.g.:
 
 %%% ------- Implementation details of a coroutine ------------------------
-\subsection{Implementation details/concepts of a coroutine}
+\subsection{Implementation details/concepts of a coroutine}\label{subsec:ImplementationOfACoroutine}
 % \begin{lstlisting}[language=C, frame=single, caption={minimum coroutine co_yield example}, label={lst:minimum_coroutine_co_yield_example}]
 %   struct Task {
 %     struct promise_type {
@@ -347,20 +347,8 @@ struct promise_type{
 
 The Promise type is determined by the compiler from the return type of the coroutine using std::coroutine\_traits.
 
-
-
-The class template coroutine\_handle can be used to refer to a suspended or executing coroutine.
-
-% COROUTINE HANDLE!!
-% You may have noticed the use of the coroutine\_handle<P> type that is passed to the await\_suspend() call of a co\_await expression.
-
-% This type represents a non-owning handle to the coroutine frame and can be used to resume execution of the coroutine or to destroy the coroutine frame. It can also be used to get access to the coroutine’s promise object.
-
-% The coroutine_handle type has the following (abbreviated) interface:
-
-
-CO\_RETURN operator
-% https://www.scs.stanford.edu/~dm/blog/c++-coroutines.html
+As mentioned in \autoref{subsec:ExecutionOfACoroutine}, each coroutine is associated with a coroutine handle.
+This handle is a non-owning reference to the coroutine frame and can be used to resume execution of the coroutine or to destroy the coroutine frame.
 
 % \begin{lstlisting}[language=C, frame=single, caption={coroutine chat with await\_transform example}, label={lst:coroutine_chat_await_transform_example}]
 % // #include <coroutine> #include <iostream> #include <utility>
@@ -418,37 +406,110 @@ CO\_RETURN operator
 \cite{baker2018promise}
 
 
-%%% ------ Comparison to other alternative solutions to hide cache misses ------------------------
-\subsection{Comparison to other alternative solutions to hide cache misses}
-AMAC, Group Prefetching
-coro is better, not performance wise but easier to use, more general
+% %%% ------ Comparison to other alternative solutions to hide cache misses ------------------------
+% \subsection{Comparison to other alternative solutions to hide cache misses}
+% AMAC, Group Prefetching
+% coro is better, not performance wise but easier to use, more general
 
 
 %%% ====== CACHE MISSES =======================
 \section{Cache Misses}\label{section:CacheMisses}
-\subsection{What are cache misses?}
-Cache misses are a fundamental concept in computer architecture, representing instances where requested data is not found in the cache, necessitating a slower access to main memory. They are typically categorized into three main types: compulsory misses, capacity misses, and conflict misses.
- Compulsory misses occur on the first access to a block, as the data has not yet been loaded into the cache regardless of cache design.
- Capacity misses happen when the cache is too small to hold all the data actively used by a program during execution, meaning the working set exceeds the cache size.
- This type of miss is directly related to the cache's capacity and can be reduced by increasing the cache size.
- Conflict misses, also known as interference misses, occur when multiple memory addresses map to the same cache set, leading to evictions of useful data even though the cache is not full.
- These misses are influenced by the cache's associativity; increasing associativity can reduce conflict misses, especially in smaller caches.
+This section provides a background on cache misses, why they cause latencies in modern computer architectures by accessing data
+and how they can be potentially be hidden.
 
-The performance of a cache is often measured using metrics such as the cache miss rate, which is the percentage of memory requests that result in a cache miss, calculated as the total number of misses divided by the total number of memory requests over a given time interval.
- The miss rate is inversely related to the hit rate, with the sum of the two equaling 100%.
- The miss rate is a critical indicator for evaluating system performance and can be used to guide optimizations in both hardware and software. For example, in multi-tasking environments, the last-level cache (LLC) miss rate is commonly used to assess an application’s contention characteristics and sensitivity to resource competition.
- However, while the LLC miss rate is effective in distinguishing CPU-bound from memory-bound applications, it is less reliable for predicting the degree of contention or sensitivity in memory-bound workloads.
-
-Research and literature have explored various strategies to mitigate cache misses. Increasing cache capacity can reduce both capacity and conflict misses, although it does not affect compulsory misses.
- Adjusting block size can also impact miss rates; larger blocks may reduce compulsory misses due to spatial locality but can increase conflict misses by reducing the number of sets in a fixed-size cache.
- Techniques such as loop nest optimization and virtual coloring are used in software to minimize conflict misses by ensuring that frequently accessed data does not map to the same cache set.
- Additionally, cache replacement policies like LRU (Least Recently Used) and write strategies such as write-back or write-through are designed to manage data in the cache efficiently, with the goal of minimizing the number of misses and their associated penalties.
-
-The study of cache misses continues to be an active area of research, particularly in the context of modern multi-core and heterogeneous systems where contention and memory access patterns are complex. Performance monitoring units (PMUs) are often used to collect data on cache misses, enabling the development of contention-aware runtime systems and scheduling algorithms.
- Despite the availability of these tools, the challenge remains in accurately predicting the impact of cache misses on overall system performance, especially for memory-intensive applications.
+\subsection{Definition of Cache Misses}\label{subsec:DefinitionOfCacheMisses}
 
 
 
+To explain cache misses, first the underlying concept of caches in modern computer architectures has to be explained briefly.
+Caches are small, fast memory units located close to the CPU cores, designed to store frequently accessed data and instructions to reduce the average time to access memory.
+When the CPU needs to read or write data, it first checks if the data is present in the cache (a cache hit).
+Typically, there are three levels of caches (L1, L2, L3 or called LLC) with L1 being the smallest and fastest, and L3 being the largest and slowest.
+If the data is not found in the caches (a cache miss), it has to be fetched from the slower main memory, which incurs a significant performance penalty.
+% picture of memory hierarchy
+
+Cache misses are typically categorized into three main types: compulsory misses, capacity misses, and conflict misses.
+Compulsory misses occur on the first access to a block, as the data has not yet been loaded into the cache regardless of cache design.
+Capacity misses happen when the cache can not hold all the data actively used by a program during execution, meaning the working set exceeds the cache size.
+Conflict misses, also known as interference misses, occur when multiple memory addresses map to the same cache set, leading to evictions of useful data even though the cache is not full.
+For a multi-processor system this 3Cs group of cache misses can be extended to 4Cs.
+The 4th C are coherence misses arising from a cache line being invalidated due to modifications made by other processors (for L3 Cache as it is typically shared across cores) or threads (for L1, L2 and L3 Cache).
+
+% Research and literature have explored various strategies to mitigate cache misses. Increasing cache capacity can reduce both capacity and conflict misses, although it does not affect
+% compulsory misses.
+% Adjusting block size can also impact miss rates; larger blocks may reduce compulsory misses due to spatial locality but can increase conflict misses by reducing the number of sets in a
+% fixed-size cache.
+% Techniques such as loop nest optimization and virtual coloring are used in software to minimize conflict misses by ensuring that frequently accessed data does not map to the same cache set.
+% Additionally, cache replacement policies like LRU (Least Recently Used) and write strategies such as write-back or write-through are designed to manage data in the cache efficiently,
+% with the goal of minimizing the number of misses and their associated penalties.
+
+
+% % WRITE MISS
+% This is an old question, but I don't think any of the other answers quite explain what the text is saying.
+% A word is typically smaller than a cache line; a system might, for example, have words that are 8 bytes in size,
+% but L1 cache lines that are 64 bytes in size. A write of a word means overwriting some portion of that cache line, not the whole cache line.
+% Therefore, to perform such a write, you would typically need to load the rest of the 64-byte aligned line into cache, so that just the modified portion can be overwritten.
+% Another issue that the text doesn't mention, but is important in practice, is cache coherency.
+% On many multiprocessing architectures, memory semantics demands that every CPU sees every write occur in the same order.
+% Those that have more relaxed semantics still need some kind of memory sequencing otherwise CPUs can't synchronise.
+% The upshot is that a CPU often must gain some kind of exclusive write access to a cache line before it is allowed to write.
+% So even if a CPU has a copy of the cache line in its L1 cache, it may need to acquire that access, which is also a kind of write miss.
+
+%  Computer Organization and Design MIPS Edition 5th Edition The Hardware/Software Interface
+
+
+
+\subsection{Cause of Cache Misses in Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
+
+% Pointer Chasing. Modern database engines use various inmemory data structures that are directly addressed by virtual memory pointers. Memory blocks used by these data structures are
+% usually allocated from the heap and chained together using pointers. For example, the nodes of an in-memory B+-tree are allocated
+% and deallocated as the tree grows and shrinks. To traverse a tree
+% from its root node to the target leaf node, the accessing thread
+% must dereference multiple pointers from the root to the leaf node,
+% forming a random access pattern. Unfortunately, such patterns are
+% very difficult (if not impossible) for hardware prefetchers to predict accurately, leading to very high likelihood of last-level cache
+% misses1 upon pointer dereference. As a result, in main-memory systems data stalls often dominate total CPU execution time. Beyond
+% indexes, version chains in multi-versioned systems as described in
+% Section 2.1 can also cause a significant amount of data stalls when
+% the accessing thread searches for a particular version. In some systems, over 50% of the total CPU cycles can be spent on waiting for
+% data to be loaded from memory to CPU caches [21]. Hiding such
+% stalls can potentially lead to much higher overall performance.
+
+\subsection{Techniques to counter Cache Misses}
+% 2.3 Tackling Cache Misses
+% In the literature, we find many software techniques to deal
+% with cache misses. Based on how they affect the number of
+% cache misses and the incurred penalty, these techniques fall
+% into the following three categories:
+% • Eliminate cache misses by increasing spatial and
+% temporal locality. Locality is increased by a) eliminating indirection, designing cache-conscious data structures like the CSB+-tree [28]; b) matching the data
+% layout to the access pattern of the algorithm, i.e, store
+% data that are accessed together in contiguous space; or
+% c) reorganizing memory accesses to increase locality,
+% e.g., with array [16] and tree blocking [14, 32]. In this
+% work, we assume that the index has the best possible
+% implementation and locality cannot be further increased without penalizing single lookups. Nonetheless,
+% our proposal can be applied to any index structure.
+% • Reduce the cache miss penalty by scheduling independent instructions to execute after a load; this
+% approach increases instruction-level parallelism and leads to more effective out-of-order execution. To reduce
+% the main-memory access penalty, a non-blocking load
+% has to be introduced early enough, allowing independent instructions to execute while fetching data. This
+% is achieved through simple prefetching within an instruction stream, or exploiting simultaneous multithreading with helper threads that prefetch data [31]. In
+% index lookups, however, one memory access depends
+% on the previous one with few independent instructions
+% in-between, so these techniques do not apply.
+% • Hide the cache miss penalty by overlapping memory accesses. The memory system can serve several
+% memory requests in parallel (10 in current Intel CPUs)
+% and exploiting this memory-level parallelism increases
+% memory throughput. However, overlapping requires
+% independent memory accesses, which do not exist in
+% the access chain of an index lookup.
+% Takeaway. These approaches do not benefit individual
+% index lookups. Next, we show how to hide the cache misses
+% of a group of lookups with interleaved execution.
+
+
+\subsection{Lifecycle of a prefetch instruction through the memory subsystem}\label{subsec:LifecyclePrefetchInstruction}
 
 \begin{figure}[h]
   \centering
@@ -460,26 +521,172 @@ The study of cache misses continues to be an active area of research, particular
 
 
 
-\subsection{When can they happen?}
-
-\subsection{Why are they relevant in data bases and different index structures}
-
-\subsection{Cache Misses in Data Structures}\label{section:DataStructures}
-Chaining vs Open Addressing (Linear Probing)
-B+ Tree
 
 
 
 
 
-%%% ====== COMPUTER ARCHITECTURE =======================
-\section{Computer Architecture}\label{section:ComputerArchitecture}
-\subsection{Different Computer Architectures, x86-64, amd, apple, mips}
-
-\subsection{Introduction to computer achitecture and storage layout}
-
-\subsection{Different Compilers - Gnu vs Clang}
 
 
 
+% At first glance, the concept of software-based prefetching appears
+% seemingly straightforward: data accesses, which are challenging
+% or unfeasible for the hardware to predict, can be communicated
+% to the CPU via specific instructions—interpreted as hints from the
+% application. Based on these hints, the underlying hardware substrate can move data asynchronously into a cache close to the CPU
+% to minimize the access latency—hiding the actual latency behind
+% computational work. Data structures that exhibit indirect access
+% patterns provide good examples for instructing the hardware with
+% insights from the software layer, for instance, linked lists, queues,
+% hash tables, and trees.
+% 2.1 Utilize Software Prefetching
+% However, formulating such predictions is often cumbersome. Consider the traversal through a tree-like data structure: The immediate
+% succession of identifying and accessing a node leaves negligible
+% time for the hardware to load the data, even if the software hints
+% about the soon-to-be-accessed tree node. In order to create a (sufficient) temporal gap between pinpointing the next node and accessing it, the literature explores various methods. The key idea
+% is to break operations into stages and use pipelining, overlaying
+% the prefetch of one item with the compute of others, for example, by processing operations in groups [9, 18]. A more general
+% approach is to utilize asynchronous control flow abstractions, such
+% as coroutines [11, 16, 30, 37] and fine-grained tasks [28]. In addition,
+% the discussion over the strategic implementation of optimization
+% passes to automatically inject prefetch instructions into compilergenerated code has been ongoing for decades (e.g., [6, 15, 22, 27]).
+% Not only does the redesign of algorithms and data structures
+% play a decisive role in the efficient use of software prefetching, but
+% the instruction must also be issued at the appropriate moment [15].
+% When software executes the prefetching instruction too early before the actual access, the data may have been already evicted from
+% the cache when needed. Conversely, if prefetched too late, the data
+% might not be transferred to the cache completely, potentially causing the CPU to wait. Accurate prefetch timing necessitates careful
+% understanding of both the execution time of the instructions preceding the actual load and the system’s memory latency [6, 27].
+% However, the presence of intricate memory systems like NUMA
+% and high-bandwidth memory, as well as the increasing sophistication of CPUs, which now feature out-of-order execution and
+% superscalar architectures, exacerbate the complexity of achieving
+% precise timing. A promising approach to tackle these challenges is
+% the implementation of profile-guided approaches [15].
+% TLBs L1d LFB L2 off-core
+% prefetchNTA [0xA]
+% prefetchT0 [0xB]
+% prefetchT1 [0xC]
+% synchronous
+% asynchronous
+% Figure 2: Lifecycle of various prefetch instructions through
+% the memory subsystem.
+% 2.2 Lifecycle of a Prefetch
+% Almost all modern server and desktop platforms offer several prefetch
+% instructions to target different levels of the cache hierarchy. Notably, each instruction will initiate the transfer for one cache line.
+% The implementation within various hardware systems has only
+% slight variations, even across different vendors. When the software
+% executes a prefetch, the logical address to be prefetched is translated
+% first into a physical one. This procedure happens synchronously, i.e.,
+% if the translation is not cached within the Translation Lookaside
+% Buffer (TLB), the CPU will contact a Page Miss Handler (PMH)
+% before continuing the execution of the prefetch instruction. We
+% visualize the lifecycle of prefetch requests through the memory
+% subsystem in Figure 2.
+% Once the physical address is known and the request misses the
+% L1 data cache (L1d), the hardware will trigger the transfer from
+% memory to caches asynchronously. To that end, the L1d cache requests the cache line through the Line Fill Buffer (LFB) (or Miss
+% Address Buffer (MAB) on AMD platforms1
+% ). The LFB, as suggested
+% by its name, acts as a buffer-like structure that interfaces between
+% the L1d and L2 cache to communicate requests on a cache-line
+% granularity [8, 33, 34]. For every cache line that misses the L1d,
+% the CPU allocates a slot in the LFB. The L2 cache, on the opposite
+% end, retrieves and delivers the requested lines. This nature makes
+% it straightforward to implement asynchronous prefetches: The desired cache line will not cause the instruction to wait until the
+% data is transferred into the cache but only until the miss is communicated to the LFB. Furthermore, the LFB enables the CPU to
+% handle several pending requests simultaneously without blocking
+% a single one, supporting out-of-order execution and performing
+% micro-optimizations like merging multiple requests to the same
+% cache line [34]. When the request also misses the L2 cache, it seeks
+% the data from even higher cache levels or main memory. On Intel
+% platforms, the superqueue [19]—a buffer positioned between the
+% L2 and off-core last-level caches (LLCs)—tracks pending requests.
+% Upon completing a memory request, the specific software prefetch instruction dictates how close the data is moved to the CPU.
+% In the x86 and ARM ISAs, most prefetch instructions clearly specify
+% the cache level target for the fetched data: Cache lines fetched by
+% prefetcht1 (and its counterpart pldl2keep on ARM) are stored in
+% the L2 cache; prefetcht0 (pldl1keep on ARM) moves data further
+% into the L1d, thereby passing through the LFB. The prefetcht2
+% instruction is generally aimed to fetch data into the LLC. However,
+% recent Intel platforms (since Skylake) have implemented the LLC as
+% a non-inclusive victim cache—in that case, data is placed into the L2
+% instead. Conversely, for the non-temporal prefetchnta instruction,
+% the x86 ISA does not specify a particular cache target but only the
+% 1
+% For the sake of simplicity, we only ever refer to the LFB, but also intend the MAB.
+% How to Be Fast and Not Furious: Looking Under the Hood of CPU Cache Prefetching DaMoN ’24, June 10, 2024, Santiago, AA, Chile
+% objective: reducing cache pollution for data that will be accessed
+% nonrecurring.
+% AMD’s documentation for earlier processor generations (e.g.,
+% Bulldozer [3]) specifies that the prefetchnta instruction pulls data
+% into the L1d and ensures it is not evicted to the L2 cache unless
+% it originated from there. For later generations (i.e., for Zen), the
+% documentation no longer mentions the exact cache destination but
+% merely states that the L2 is bypassed when evicting non-temporal
+% data. Intel, in contrast, also specifies for modern platforms that
+% non-temporal prefetches move data into the L1d and into the LLC
+% if the LLC is inclusive [13]. Both Intel and AMD note that these
+% non-temporally prefetched cache lines are prioritized for quicker
+% eviction [4, 13].
+% 2.3 Limitations
+% Modern platforms exhibit two notable limitations in the implementation of software prefetches. First, the execution of a single
+% prefetch instruction stalls until the virtual address is translated
+% into a physical address [13, 30]. Although the TLB might accelerate
+% this process, it is likely that the most prefetched addresses are not
+% present in the TLB as software prefetching is used primarily when
+% the application accesses scattered data objects. Consequently, the
+% latency of the prefetch instruction is dominated by the latency of
+% the PMH performing a page-table walk to translate the address.
+% However, this restriction only applies to the initial prefetch operation within a memory page if several prefetches are performed
+% consecutively to load a block larger than a single cache line. While
+% hardware also implements prefetchers for address translations [35],
+% the software is only empowered to preload data.
+% Drawing from that observation, it seems advantageous to use
+% prefetching for larger, contiguous data regions by executing multiple instructions while only experiencing a single TLB miss per
+% page. However, this may introduce a secondary constraint: Due to
+% the limited number of LFB entries (typically between 3 and 24), the
+% hardware can accommodate only a small number of outstanding
+% memory requests. If an excessive volume of prefetch requests is
+% sent out rapidly, the LFB becomes filled and cannot accept further
+% requests. Under this circumstance, the CPU will either stall until
+% an LFB slot becomes ready or—according to Intel’s documentation [13]—drop new prefetch requests.
 
+
+
+
+
+
+% https://dl.acm.org/doi/epdf/10.1145/2133382.2133384
+
+
+
+
+% %%% ====== COMPUTER ARCHITECTURE =======================
+% \section{Computer Architecture}\label{section:ComputerArchitecture}
+
+% \subsection{Different Computer Architectures, x86-64, amd, apple, mips}
+
+% \subsection{Introduction to computer achitecture and storage layout}
+% pyramid, and tlb access schemata
+
+% \subsection{Different Compilers - Gnu vs Clang}
+
+% % There are multiple C compilers due to a combination of historical development, hardware and software specialization, and differing design philosophies. The need for compilers optimized for specific hardware and operating systems has driven the creation of diverse tools. For example, Intel's ICC (Intel C Compiler) is optimized for Intel processors, while AMD's AOCC (AMD Optimizing C/C++ Compiler) is tailored for AMD systems, aiming to maximize performance on their respective architectures.
+% %  Similarly, compilers like ACK were developed specifically for operating systems such as OpenBSD, highlighting the role of the target environment in compiler design.
+
+% % The evolution of the C language itself, with multiple standards (C89, C99, C11, C17, C23), has also contributed to diversity. Some compilers support newer language features more comprehensively than others, and certain compilers may not support all C standards equally.
+% %  This leads to a need for multiple compilers to ensure code compatibility and performance across different platforms and use cases.
+
+% % Additionally, the design and architecture of compilers vary significantly. GCC (GNU Compiler Collection) is a monolithic system with a complex internal structure, while Clang, part of the LLVM project, was designed from the start as a modular API, making it easier to integrate into tools like IDEs, static analyzers, and refactoring utilities.
+% %  This architectural difference influences how compilers are used and extended.
+
+% % Despite the existence of many compilers, only a few are widely used in practice. The major players include GCC, Clang, and Microsoft Visual C++ (MSVC), which dominate due to their robustness, extensive feature sets, and strong community support.
+% %  However, niche compilers like Pelles C, LCC, and TCC (Tiny C Compiler) exist for specific purposes such as embedded development or minimal footprint requirements.
+% %  Some compilers, like the Portable C Compiler or LabWindows/CVI, are used by specialized developer communities.
+
+% % The presence of multiple compilers also stems from the fact that C and C++ are closely related, with C++ being largely a superset of C. As a result, many compilers that support C++ also support C, and the effort to build a C++ compiler often includes C support as a natural byproduct.
+% %  This shared foundation reduces the marginal cost of supporting both languages, but it does not eliminate the need for specialized tools optimized for particular environments or performance goals.
+
+% % file://wsl.localhost/Ubuntu/home/danieldagruber/TUM_Master_11/00_MasterThesis/07_p577-huang_TheArtOfLatencyHidingInModernDatabaseEngines.pdf
+% % where can latencies come from: pointer chasing, synch, storage io, oversubscription, osschedling
+% % https://chipsandcheese.com/p/skylake-intels-longest-serving-architecture
