@@ -33,7 +33,42 @@ Group Prefetching and AMAC
 
 \section{scheduler for multiple coroutines}
 
-\section{testing on different machines and compilers and data structures}
+
+\begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}]
+  template<const size_t numCoroutines>
+    std::vector<typename ht_primary_key::Hashtable::Entry *>
+    lookupHTEntries(const ht_primary_key::Hashtable &ht, const std::span<const size_t> &lookups) noexcept {
+        // Compute the nr. of lookups for each coroutine
+        // Initialize the coroutines
+        std::vector<typename ht_primary_key::Hashtable::Entry *> entries;
+        entries.reserve(lookups.size() / 2);
+        std::array<Silent, numCoroutines> coroutines =
+                ([&ht, &lookups, &entries]<size_t... Is>(std::index_sequence<Is...>) {
+                    return std::array{lookup<numCoroutines>(ht, lookups, entries, Is)...};
+                })(std::make_index_sequence<numCoroutines>{});
+        // entries.reserve(lookups.size());
+        //std::cout << "Starting lookup with " << numCoroutines << " coroutines." << std::endl;
+
+        while (true) {
+            size_t activeCoroutines = 0;
+            for (auto &c: coroutines) {
+                // std::cout << "Coroutine " << activeCoroutines << " is active." << std::endl;
+                if (!c.h_.done()) {
+                    activeCoroutines++;
+                    c.h_.resume();
+                }
+            }
+            if (activeCoroutines == 0) {
+                break;
+            }
+        }
+
+        return std::move(entries);
+    }
+\end{lstlisting}
+
+
+
 
 
 \section{Different coroutine approaches and their trade-offs}
@@ -51,6 +86,7 @@ not amac and gp
 
 
 
+\section{testing on different machines and compilers and data structures}
 
 \section{Benchmarking Setup}
 doing this on different compilers and machines

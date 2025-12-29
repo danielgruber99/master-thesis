@@ -13,25 +13,173 @@
 
 \chapter{Using Coroutines and Cache Prefetching in different DataStructures for hiding cache-misses}\label{chapter:CoroInDatastructures}
 
-
-\section{Coroutines in chaining Hashtable}
+% =========== Hashtable =============
+\section{Coroutines in chaining Hashtable}\label{sec:CoroutinesInHashtable}
 \subsection{Implementation}
+\begin{lstlisting}[language=C, frame=single, caption={coroutine lookup in chaining hashtable}, label={lst:coroutine_ht_lookup}]
+template<const size_t numCoroutines>
+    Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
+                  const size_t offset) noexcept {
+        auto idx = offset; size_t key; uint64_t hashIdx;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+            hashIdx = hashKey(key) & ht.mask;
+            PREFETCH(&(ht.ht[hashIdx]));    // Initial prefetch of the first value
+            co_await std::suspend_always{}; // Suspend the coroutine until resumed
+
+            auto result = ht.ht[hashIdx]; // Read the previously cached value
+
+            while (!((result == nullptr) || (result->key == key))) {
+                PREFETCH(result->next); // Prefetch the next entry in the linked list
+                co_await std::suspend_always{};
+                result = result->next;
+            }
+            if (result != nullptr) results.push_back(result);
+        }
+        co_return;
+    }
+\end{lstlisting}
+
+
 \subsection{Benchmarking and Measurements}
 \subsection{Results}%also across different hardware architectures
 
 
-\section{Coroutines in linear probing hashtable} % as in duckdb
+% =========== Linear Probing Hashtable =============
+\section{Coroutines in linear probing hashtable}\label{sec:CoroutinesInLinearProbingHashtable}
+
 \subsection{Implementation}
+
+\begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
+template<const size_t numCoroutines>
+    Task lookup_ht_entry_t(const linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t> &ht,
+                             const auto &lookups, auto &results, const size_t offset) noexcept {
+        auto idx = offset;
+        size_t key;
+        uint64_t hashIdx;
+        uint64_t hash;
+        linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *data = nullptr;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+            hash = ht.ComputeHash(key);
+            uint64_t slot = hash & ht.bitmask;
+            uint64_t salt = ht.ExtractSalt(hash);
+
+            // Find SLOT
+            linear_probing_ht_duckdb::ht_entry_t entry;
+            while (true) {
+                PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
+                co_await std::suspend_always{}; // Suspend the coroutine until resumed
+                entry = ht.entries[slot];       // Read the previously cached value
+                if (!entry.IsOccupied()) {
+                    // Empty slot found
+                    break;
+                }
+                if (ht.use_salts) {
+                    // Check salt first (bloom filter)
+                    if (entry.GetSalt() == salt) {
+                        // Salt matches, need to check actual key
+                        data = reinterpret_cast<
+                                linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
+                                entry.GetPointer());
+                        if (data && ht.key_equal(data->key, key)) {
+                            entry = ht.entries[slot]; // Found matching key
+                            break;
+                        }
+                    }
+                } else {
+                    // No salt optimization, check key directly
+                    data = reinterpret_cast<
+                            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
+                            entry.GetPointer());
+                    if (data && ht.key_equal(data->key, key)) {
+                        entry = ht.entries[slot]; // Found matching key
+                        break;
+                    }
+                }
+
+                // Continue linear probing
+                data = nullptr;
+                linear_probing_ht_duckdb::IncrementAndWrap(slot, ht.bitmask);
+            }
+
+            if(data == nullptr) {
+                continue; // Not found
+            }
+            // Found an entry, retrieve all values in the chain
+            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *current = data;
+            while (current) {
+                results.push_back(current);
+                PREFETCH(current->next);
+                co_await std::suspend_always();
+                current = current->next;
+            }
+        }
+
+        co_return;
+    }
+\end{lstlisting}
+
+
+
 \subsection{Measurements}
+
 \subsection{Results}%also across different hardware architectures
 
-\section{Coroutines in B+ Tree}
+
+
+% =========== B+ Tree =============
+\section{Coroutines in B+ Tree}\label{sec:CoroutinesInBPlusTree}
 \subsection{Implementation}
+
+\begin{lstlisting}[language=C++, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}]
+template<typename Key_t, typename Value_t, const size_t numCoroutines>
+    Task lookup(const bptree::BPTree<Key_t, Value_t> &t, const auto &lookups, auto &results,
+                  const size_t offset) noexcept {
+        auto idx = offset;
+        uint64_t key;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+
+            auto node = t.root;
+            while (!node->isLeaf()) {
+                size_t i = 0;
+                while (i < node->nr_keys && key >= node->keys[i]) {
+                    i++;
+                }
+                PREFETCH(std::move(dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i]));
+                co_await std::suspend_always{};
+                node = dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i];
+            }
+            bptree::LeafNode<Key_t, Value_t> *leafNode =
+                    std::move(dynamic_cast<bptree::LeafNode<Key_t, Value_t> *>(node));
+
+            // here I could do better search algorithm (binary search) but for now I just do linear search
+            for (size_t i = 0; i < leafNode->nr_keys; i++) {
+                if (leafNode->keys[i] == key) {
+                    results.push_back(std::make_tuple(std::move(key), std::move(leafNode->values[i])));
+                    break; // Stop searching if key is found
+                }
+            }
+        }
+
+        co_return;
+    }
+\end{lstlisting}
+
+
 \subsection{Measurements}
+
+
 \subsection{Results}%also across different hardware architectures
 
 
 
-% \section{Coroutines in DuckDB} ? should i do this chapter in here, and delet 05_duckdb_coro.tex then?
+
+% =========== DuckDB =============
+% \section{Coroutines in DuckDB}\label{sec:CoroutinesInDuckDB} ? should i do this chapter in here, and delet 05_duckdb_coro.tex then?
 
 

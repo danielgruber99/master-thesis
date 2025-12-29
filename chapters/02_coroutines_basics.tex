@@ -276,7 +276,7 @@ For more customization, more complex awaitabletypes can be implemented, requirin
   T await_resume();
 \end{lstlisting}
 
-In the $ co\_await expr; $ operator the expression, the awaiter type, is firstly converted to an awaitable.
+In the $ co\_await expr; $ operator the expression is firstly converted to an awaitable type.
 If the promise\_type type of the current coroutine has a member function await\_transform, then the awaitable is obtained by calling promise.await\_transform(expr), illustrated in \autoref{lst:pseudo_code_which_awaiter_awaitable}.
 Otherwise, the awaitable is expr as-is.
 
@@ -300,6 +300,9 @@ func get_awaiter(awaitable){
 
 Then, the awaiter object is obtained like illustrated in func get\_awaiter in \autoref{lst:pseudo_code_which_awaiter_awaitable}.
 If no operator co\_await is defined, the awaitable itself is the awaiter which implicates that a type can be an awaitable and an awaiter type simultaneously.
+For the simple example, in \autoref{lst:minimum_coroutine_co_await_example}, the expression std::suspend\_always after the co\_await is the expression which already
+is the awaitable as-is as it is an awaitable and has no await\_transform() member. The awaiter is also std::suspend\_always as it has no operator co\_await defined.
+Thus, std::suspend\_always is both the awaitable and the awaiter type.
 
 Then, awaiter.await\_ready() is called , The coroutine is suspended awaiter.await\_suspend(handle) is called, where handle is the coroutine handle representing the current coroutine.
 Inside that function, the suspended coroutine state is observable via that handle,
@@ -413,13 +416,13 @@ This handle is a non-owning reference to the coroutine frame and can be used to 
 
 
 %%% ====== CACHE MISSES =======================
-\section{Cache Misses}\label{section:CacheMisses}
+\section{Cache Misses and Software Prefetching}\label{section:CacheMisses}
 This section provides a background on cache misses, why they cause latencies in modern computer architectures by accessing data
 and how they can be potentially be hidden.
 
 \subsection{Definition of Cache Misses}\label{subsec:DefinitionOfCacheMisses}
 
-
+% CACHE MISSES von wikipedia, data misses, write misses, read misses
 
 To explain cache misses, first the underlying concept of caches in modern computer architectures has to be explained briefly.
 Caches are small, fast memory units located close to the CPU cores, designed to store frequently accessed data and instructions to reduce the average time to access memory.
@@ -458,25 +461,93 @@ The 4th C are coherence misses arising from a cache line being invalidated due t
 %  Computer Organization and Design MIPS Edition 5th Edition The Hardware/Software Interface
 
 
+\subsection{Cause of Cache Misses Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
 
-\subsection{Cause of Cache Misses in Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
+Modern database engines utilize various in-memory data structures that are directly addressed by virtual memory pointers.
+Memory blocks used by these data structures are typically allocated from the heap and chained together using pointers.
+For example, the nodes of an in-memory B+-tree are dynamically allocated and deallocated as the tree grows and shrinks.
+To traverse such a tree from its root node to the target leaf node, the accessing thread must dereference multiple pointers sequentially from the root to the leaf, forming a random access pattern.
 
-% Pointer Chasing. Modern database engines use various inmemory data structures that are directly addressed by virtual memory pointers. Memory blocks used by these data structures are
-% usually allocated from the heap and chained together using pointers. For example, the nodes of an in-memory B+-tree are allocated
-% and deallocated as the tree grows and shrinks. To traverse a tree
-% from its root node to the target leaf node, the accessing thread
-% must dereference multiple pointers from the root to the leaf node,
-% forming a random access pattern. Unfortunately, such patterns are
-% very difficult (if not impossible) for hardware prefetchers to predict accurately, leading to very high likelihood of last-level cache
-% misses1 upon pointer dereference. As a result, in main-memory systems data stalls often dominate total CPU execution time. Beyond
-% indexes, version chains in multi-versioned systems as described in
-% Section 2.1 can also cause a significant amount of data stalls when
-% the accessing thread searches for a particular version. In some systems, over 50% of the total CPU cycles can be spent on waiting for
-% data to be loaded from memory to CPU caches [21]. Hiding such
-% stalls can potentially lead to much higher overall performance.
+This pointer chasing behavior poses a significant challenge for hardware prefetchers.
+Such access patterns are very difficult, if not impossible, for hardware prefetchers to predict accurately, leading to a high likelihood of last-level cache misses upon each pointer dereference.
+As a result, in main-memory systems, data stalls often dominate total CPU execution time.
+Beyond tree-based indexes, version chains in multi-versioned concurrency control systems can also cause a significant amount of data stalls when the accessing thread searches for a particular version.
+In some systems, over 50\% of the total CPU cycles can be spent waiting for data to be loaded from memory to CPU caches.
+Hiding such stalls can potentially lead to much higher overall performance.
 
-\subsection{Techniques to counter Cache Misses}
-% 2.3 Tackling Cache Misses
+
+% TODO: make my example also with hashtable and pictures
+
+
+\subsection{Techniques to counter Cache Misses}\label{subsec:TechniquesCounterCacheMisses}
+
+
+%Basic Idea. Software prefetching techniques [5, 21, 26, 44] use
+% workload semantics to issue prefetch instructions [18] to explicitly
+% bring data into CPU caches. Worker threads handle requests (e.g.,
+% tree search) in batches. To access data (e.g., a tree node) in request
+% 𝑡1 which may incur a cache miss, the thread issues a prefetch and
+% switches to another request 𝑡2, and repeats this process. While the
+% data needed by 𝑡1 is being fetched from memory to CPU cache,
+% the worker thread handles 𝑡2, which may further cause the thread
+% to issue prefetch and switch to another request. By the time the
+% worker thread switches back to 𝑡1, the hope is that the needed
+% data is (already and still) cache-resident. The thread then picks up
+% at where it left for 𝑡1, dereferences the pointer to the prefetched
+% data and continues executing 𝑡1 until the next possible cache miss
+% upon which a prefetch will be issued. It is important that the
+% switching mechanism and representation of requests are cheap and
+% lightweight enough to achieve a net gain
+
+
+
+The literature presents various software techniques to address cache misses.
+Based on their impact on the number of cache misses and the incurred penalty, these techniques can be categorized into three main approaches.
+
+\begin{itemize}
+  \item Eliminate cache misses by increasing spatial and temporal locality.
+  \item Reduce the cache miss penalty by scheduling independent instructions to execute after a load.
+  \item Hide the cache miss penalty by overlapping memory accesses.
+\end{itemize}
+
+The first approach aims to eliminate cache misses by increasing spatial and temporal locality.
+Locality can be improved through several methods: eliminating indirection by designing cache-conscious data structures, matching the data layout to the access pattern of the algorithm such that data accessed together is stored in contiguous space, or reorganizing memory accesses to increase locality through techniques like array blocking and tree blocking.
+However, these optimizations often require fundamental changes to data structure design and may not be applicable when the data structure layout is already optimized or when modifications would negatively impact other operations.
+
+The second approach focuses on reducing the cache miss penalty by scheduling independent instructions to execute after a memory load.
+This approach increases instruction-level parallelism and leads to more effective out-of-order execution.
+To reduce the main-memory access penalty, a non-blocking load must be introduced early enough to allow independent instructions to execute while fetching data.
+This can be achieved through simple prefetching within an instruction stream or by exploiting simultaneous multithreading with helper threads that prefetch data.
+However, in scenarios like index lookups where one memory access depends on the previous one with few independent instructions in between, these techniques provide limited benefits.
+
+The third approach seeks to hide the cache miss penalty by overlapping memory accesses.
+Modern memory systems can serve multiple memory requests in parallel (typically around 10 concurrent requests in current Intel CPUs),
+and exploiting this memory-level parallelism increases memory throughput.
+However, overlapping requires independent memory accesses that can be issued simultaneously.
+In the access chain of an index lookup, where each step depends on the result of the previous one,
+such independent accesses are not naturally available.
+
+These traditional approaches provide limited benefits for individual index lookups with dependent memory accesses.
+To effectively hide cache misses in such scenarios, techniques that can create parallelism across multiple independent operations are needed,
+such as processing operations in groups with interleaved execution.
+
+
+% TODO: AMAC AND GROUP PREFETCHING
+Hand-Crafted Approaches. The mechanism we just described
+fits naturally with many loop-based operations. Group prefetching
+and software pipelined prefetching [5] overlap multiple hash table
+lookups to accelerate hash joins. After a prefetch is issued, the
+control flow switches to execute the computation stage of another
+operation. Asynchronous memory access chaining (AMAC) [26] is
+432
+a general approach that allows one to transform a heterogeneous
+set of operations into state machines to facilitate switching between operations upon cache misses. A notable drawback of these
+approaches is they require developers hand-craft algorithms. The
+resulted code is typically not intuitive to understand and hard to
+maintain. This limits their application to simple or individual data
+structures and operations (e.g., tree traversal). Recent approaches
+tackle this challenge using lightweight coroutines, described next.
+
 % In the literature, we find many software techniques to deal
 % with cache misses. Based on how they affect the number of
 % cache misses and the incurred penalty, these techniques fall
@@ -509,156 +580,82 @@ The 4th C are coherence misses arising from a cache line being invalidated due t
 % of a group of lookups with interleaved execution.
 
 
-\subsection{Lifecycle of a prefetch instruction through the memory subsystem}\label{subsec:LifecyclePrefetchInstruction}
+
+
+\subsection{Software Prefetching}\label{subsec:SoftwarePrefetching}
+Hardware manufacturers have implemented various hardware prefetching techniques to automatically detect and pre-load data into caches before they are accessed by the CPU.
+These hardware prefetchers monitor memory access patterns and attempt to predict future accesses based on historical data.
+However, the reliance on hardware prefetchers has limitations, especially for applications with irregular access patterns where predictions may be inaccurate or insufficient.
+
+Typically, these hints are communicated via specific
+instructions embedded within modern ISAs such as x86 and ARMv8.
+Especially in the context of trees and hash tables, many studies
+
+The solution to overcome this is Software-based prefetching.
+It enables applications to proactively hint to the CPU about upcoming data accesses which for the hardware is hard or even impossible to predict.
+These hints, specific instrucctions in modern ISAs such as x86 and ARMv8, allow the hardware to move data asynchronously into the cache hierarchy,
+thereby reducing access latency by overlapping data transfers with computation.
+
+% However, implementing effective software prefetching presents several challenges.
+% Consider traversing a tree-like data structure: the immediate succession of identifying
+% and accessing a node leaves negligible time for the hardware to load the data, even with prefetch hints.
+% To create a sufficient temporal gap between pinpointing the next node and accessing it, various methods have been explored.
+% The key approach is to break operations into stages and use pipelining, overlaying the prefetch of one item with the compute of others, for example, by processing operations in groups.
+% A more general approach utilizes asynchronous control flow abstractions, such as coroutines and fine-grained tasks.
+
+With Software prefetching, proactively hinting the CPU what data to preload into the cache, timing of these prefetches is crucial for effectiveness.
+When software executes the prefetching instruction too early before the actual access, the data may have already been evicted from the cache when needed.
+Conversely, if prefetched too late, the data might not be transferred to the cache completely, potentially causing the CPU to stall.
+The presence of intricate memory systems like NUMA and high-bandwidth memory,
+as well as the increasing sophistication of CPUs with out-of-order execution and superscalar architectures, further complicate achieving precise timing.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.6\paperwidth]{figures/prefetch_instructions_lifecycle_through_memory_subsystem.png}
-  \caption{Prefetch Lifecycle through memory subsystem}
+  \caption{Lifecycle of prefetch instructions through the memory subsystem}
   % \quelle{\cite{ADaSurvey}}
   \label{fig:PrefetchLifecycleThroughMemorySubsystem}
 \end{figure}
 
+% Lifecycle of a Software Prefetch
+Modern platforms offer several prefetch instructions to target different levels of the cache hierarchy, with each instruction initiating the transfer of one cache line.
+As visualized in \autoref{fig:PrefetchLifecycleThroughMemorySubsystem}, when the software executes a prefetch, the logical address is first translated into a physical one.
+This procedure happens synchronously—if the translation is not cached within the Translation Lookaside Buffer (TLB), the CPU contacts a Page Miss Handler (PMH) before continuing execution of the prefetch instruction.
 
+% ERROR: Figure conflicts with previous figure, i think first TLB is asked, then caches, and if miss, PMH is asked
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=0.6\paperwidth]{figures/sequenzdiagramm_data_load.png}
+%   \caption{Data Load through Memory Subsystem}
+%   % \quelle{\cite{ADaSurvey}}
+%   \label{fig:DataLoadThroughMemorySubsystem}
+% \end{figure}
 
+Once the physical address is known and the request misses the L1 data cache (L1d), the hardware triggers the transfer from memory to caches asynchronously.
+The L1d cache requests the cache line through the Line Fill Buffer (LFB), which acts as a buffer-like structure interfacing between the L1d and L2 cache to communicate requests on a cache-line granularity.
+For every cache line that misses the L1d, the CPU allocates a slot in the LFB.
+This nature makes it straightforward to implement asynchronous prefetches: the desired cache line does not cause the instruction to wait until the data is transferred into the cache but only until the miss is communicated to the LFB.
+Furthermore, the LFB enables the CPU to handle several pending requests simultaneously without blocking, supporting out-of-order execution and performing micro-optimizations like merging multiple requests to the same cache line.
 
+The specific software prefetch instruction dictates how close the data is moved to the CPU.
+In the x86 ISA, most prefetch instructions clearly specify the cache level target for the fetched data:
+\texttt{prefetcht1} stores cache lines in the L2 cache, \texttt{prefetcht0} moves data into the L1d, and \texttt{prefetcht2} is generally aimed at the LLC (though on recent Intel platforms since Skylake with non-inclusive victim caches, data is placed into the L2 instead).
+The non-temporal \texttt{prefetchnta} instruction does not specify a particular cache target but aims to reduce cache pollution for data that will be accessed non-recurringly, with these cache lines being prioritized for quicker eviction.
 
+% Limitations
+Modern platforms exhibit two notable limitations in the implementation of software prefetches.
+First, the execution of a single prefetch instruction stalls until the virtual address is translated into a physical address.
+Although the TLB might accelerate this process, prefetched addresses are often not present in the TLB since software prefetching is primarily used when the application accesses scattered data objects.
+Consequently, the latency of the prefetch instruction is dominated by the latency of the PMH performing a page-table walk to translate the address.
+However, this restriction only applies to the initial prefetch operation within a memory page if several prefetches are performed consecutively.
 
-
-
-
-
-
-% At first glance, the concept of software-based prefetching appears
-% seemingly straightforward: data accesses, which are challenging
-% or unfeasible for the hardware to predict, can be communicated
-% to the CPU via specific instructions—interpreted as hints from the
-% application. Based on these hints, the underlying hardware substrate can move data asynchronously into a cache close to the CPU
-% to minimize the access latency—hiding the actual latency behind
-% computational work. Data structures that exhibit indirect access
-% patterns provide good examples for instructing the hardware with
-% insights from the software layer, for instance, linked lists, queues,
-% hash tables, and trees.
-% 2.1 Utilize Software Prefetching
-% However, formulating such predictions is often cumbersome. Consider the traversal through a tree-like data structure: The immediate
-% succession of identifying and accessing a node leaves negligible
-% time for the hardware to load the data, even if the software hints
-% about the soon-to-be-accessed tree node. In order to create a (sufficient) temporal gap between pinpointing the next node and accessing it, the literature explores various methods. The key idea
-% is to break operations into stages and use pipelining, overlaying
-% the prefetch of one item with the compute of others, for example, by processing operations in groups [9, 18]. A more general
-% approach is to utilize asynchronous control flow abstractions, such
-% as coroutines [11, 16, 30, 37] and fine-grained tasks [28]. In addition,
-% the discussion over the strategic implementation of optimization
-% passes to automatically inject prefetch instructions into compilergenerated code has been ongoing for decades (e.g., [6, 15, 22, 27]).
-% Not only does the redesign of algorithms and data structures
-% play a decisive role in the efficient use of software prefetching, but
-% the instruction must also be issued at the appropriate moment [15].
-% When software executes the prefetching instruction too early before the actual access, the data may have been already evicted from
-% the cache when needed. Conversely, if prefetched too late, the data
-% might not be transferred to the cache completely, potentially causing the CPU to wait. Accurate prefetch timing necessitates careful
-% understanding of both the execution time of the instructions preceding the actual load and the system’s memory latency [6, 27].
-% However, the presence of intricate memory systems like NUMA
-% and high-bandwidth memory, as well as the increasing sophistication of CPUs, which now feature out-of-order execution and
-% superscalar architectures, exacerbate the complexity of achieving
-% precise timing. A promising approach to tackle these challenges is
-% the implementation of profile-guided approaches [15].
-% TLBs L1d LFB L2 off-core
-% prefetchNTA [0xA]
-% prefetchT0 [0xB]
-% prefetchT1 [0xC]
-% synchronous
-% asynchronous
-% Figure 2: Lifecycle of various prefetch instructions through
-% the memory subsystem.
-% 2.2 Lifecycle of a Prefetch
-% Almost all modern server and desktop platforms offer several prefetch
-% instructions to target different levels of the cache hierarchy. Notably, each instruction will initiate the transfer for one cache line.
-% The implementation within various hardware systems has only
-% slight variations, even across different vendors. When the software
-% executes a prefetch, the logical address to be prefetched is translated
-% first into a physical one. This procedure happens synchronously, i.e.,
-% if the translation is not cached within the Translation Lookaside
-% Buffer (TLB), the CPU will contact a Page Miss Handler (PMH)
-% before continuing the execution of the prefetch instruction. We
-% visualize the lifecycle of prefetch requests through the memory
-% subsystem in Figure 2.
-% Once the physical address is known and the request misses the
-% L1 data cache (L1d), the hardware will trigger the transfer from
-% memory to caches asynchronously. To that end, the L1d cache requests the cache line through the Line Fill Buffer (LFB) (or Miss
-% Address Buffer (MAB) on AMD platforms1
-% ). The LFB, as suggested
-% by its name, acts as a buffer-like structure that interfaces between
-% the L1d and L2 cache to communicate requests on a cache-line
-% granularity [8, 33, 34]. For every cache line that misses the L1d,
-% the CPU allocates a slot in the LFB. The L2 cache, on the opposite
-% end, retrieves and delivers the requested lines. This nature makes
-% it straightforward to implement asynchronous prefetches: The desired cache line will not cause the instruction to wait until the
-% data is transferred into the cache but only until the miss is communicated to the LFB. Furthermore, the LFB enables the CPU to
-% handle several pending requests simultaneously without blocking
-% a single one, supporting out-of-order execution and performing
-% micro-optimizations like merging multiple requests to the same
-% cache line [34]. When the request also misses the L2 cache, it seeks
-% the data from even higher cache levels or main memory. On Intel
-% platforms, the superqueue [19]—a buffer positioned between the
-% L2 and off-core last-level caches (LLCs)—tracks pending requests.
-% Upon completing a memory request, the specific software prefetch instruction dictates how close the data is moved to the CPU.
-% In the x86 and ARM ISAs, most prefetch instructions clearly specify
-% the cache level target for the fetched data: Cache lines fetched by
-% prefetcht1 (and its counterpart pldl2keep on ARM) are stored in
-% the L2 cache; prefetcht0 (pldl1keep on ARM) moves data further
-% into the L1d, thereby passing through the LFB. The prefetcht2
-% instruction is generally aimed to fetch data into the LLC. However,
-% recent Intel platforms (since Skylake) have implemented the LLC as
-% a non-inclusive victim cache—in that case, data is placed into the L2
-% instead. Conversely, for the non-temporal prefetchnta instruction,
-% the x86 ISA does not specify a particular cache target but only the
-% 1
-% For the sake of simplicity, we only ever refer to the LFB, but also intend the MAB.
-% How to Be Fast and Not Furious: Looking Under the Hood of CPU Cache Prefetching DaMoN ’24, June 10, 2024, Santiago, AA, Chile
-% objective: reducing cache pollution for data that will be accessed
-% nonrecurring.
-% AMD’s documentation for earlier processor generations (e.g.,
-% Bulldozer [3]) specifies that the prefetchnta instruction pulls data
-% into the L1d and ensures it is not evicted to the L2 cache unless
-% it originated from there. For later generations (i.e., for Zen), the
-% documentation no longer mentions the exact cache destination but
-% merely states that the L2 is bypassed when evicting non-temporal
-% data. Intel, in contrast, also specifies for modern platforms that
-% non-temporal prefetches move data into the L1d and into the LLC
-% if the LLC is inclusive [13]. Both Intel and AMD note that these
-% non-temporally prefetched cache lines are prioritized for quicker
-% eviction [4, 13].
-% 2.3 Limitations
-% Modern platforms exhibit two notable limitations in the implementation of software prefetches. First, the execution of a single
-% prefetch instruction stalls until the virtual address is translated
-% into a physical address [13, 30]. Although the TLB might accelerate
-% this process, it is likely that the most prefetched addresses are not
-% present in the TLB as software prefetching is used primarily when
-% the application accesses scattered data objects. Consequently, the
-% latency of the prefetch instruction is dominated by the latency of
-% the PMH performing a page-table walk to translate the address.
-% However, this restriction only applies to the initial prefetch operation within a memory page if several prefetches are performed
-% consecutively to load a block larger than a single cache line. While
-% hardware also implements prefetchers for address translations [35],
-% the software is only empowered to preload data.
-% Drawing from that observation, it seems advantageous to use
-% prefetching for larger, contiguous data regions by executing multiple instructions while only experiencing a single TLB miss per
-% page. However, this may introduce a secondary constraint: Due to
-% the limited number of LFB entries (typically between 3 and 24), the
-% hardware can accommodate only a small number of outstanding
-% memory requests. If an excessive volume of prefetch requests is
-% sent out rapidly, the LFB becomes filled and cannot accept further
-% requests. Under this circumstance, the CPU will either stall until
-% an LFB slot becomes ready or—according to Intel’s documentation [13]—drop new prefetch requests.
-
-
-
-
+Second, due to the limited number of LFB entries (typically between 3 and 24), the hardware can accommodate only a small number of outstanding memory requests.
+If an excessive volume of prefetch requests is issued rapidly, the LFB becomes saturated and cannot accept further requests.
+Under this circumstance, the CPU will either stall until an LFB slot becomes available or drop new prefetch requests.
+This limitation necessitates careful management of prefetch intensity to balance memory-level parallelism with hardware constraints.
 
 
 % https://dl.acm.org/doi/epdf/10.1145/2133382.2133384
-
-
 
 
 % %%% ====== COMPUTER ARCHITECTURE =======================
