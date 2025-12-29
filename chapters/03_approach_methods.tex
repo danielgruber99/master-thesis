@@ -8,12 +8,68 @@
 % • Indicating reasons for sample characteristics
 % • Describing the process: Indicating problems or limitations
 
-\chapter{Approach to hide cache misses with coroutines}\label{chapter:ApproachMethod}
+\chapter{Method to hide cache misses with coroutines}\label{chapter:ApproachMethod}
 
-\section{Existing Techniques}
-Group Prefetching and AMAC
+This chapter describes the history of different methods that were used to implement coroutines for hiding cache misses in data structures.
+It also explains why coroutines and cache prefetching were chosen as the method to hide cache misses in pointer chasing data structures
+and which method is superior to others in terms of performance and implementation complexity.
+% However, software prefetching does not work if the data addresses are not known in advance. To the operations in pointerchasing applications, e.g., traversing skip lists, looking up hash tables and searching trees, the addresses of next nodes are not known
+% until current nodes are processed. The time between when the addresses are known and the data are needed is much less than the
+% desirable prefetching distance. We call the accesses with such a pattern as immediate memory accesses. Such accesses can only benefit
+% from the software prefetching by taking inter-task parallelism [21].
+% Specifically, after a task issues memory prefetching, it will not continue because the prefetched data is not ready in time. Instead, the
+% execution switches to other tasks, and then goes back to process the
+% prefetched data after a while.
 
-\section{Why Coroutines and cache prefetching?}
+\section{Why Coroutines and Cache prefetching?}
+% more on why this thesis really focusses on coorutines? and this specific use case of hiding cache misses with the new c++20 coroutines?
+
+
+
+% 1.1 Software Prefetching via Coroutines
+% With the recent standardization in C++20 [19], coroutines greatly
+% ease the implementation of software prefetching. Coroutines [38]
+% are functions that can suspend voluntarily and be resumed later.
+% Functions that involve pointer chasing can be written as coroutines
+% which are executed (interleaved) in batches. Before dereferencing
+% a pointer in coroutine 𝑡1, the thread issues a prefetch followed
+% by a suspend to pause 𝑡1 and switches to another coroutine 𝑡2,
+% overlapping data fetching in 𝑡1 and computation in 𝑡2.
+% Compared to earlier approaches [5, 26], coroutines only require
+% prefetch/suspend be inserted into sequential code, greatly simplifying implementation while delivering high performance, as the
+% switching overhead can be cheaper than a last-level cache miss [21].
+% However, adopting software prefetching remains challenging.
+% First, existing approaches typically use intra-transaction batching which mandates multi-key interfaces that can break backward
+% compatibility. For example, in Figure 1(b) an application1 uses
+% multi_get to retrieve a batch of records at once in a transaction. Cache misses caused by probing k1 (k2) in a tree are hidden behind the computation part of probing k2 (k1). While intratransaction batching is a natural fit for some operators (e.g., INpredicate queries [44, 45]), it is not always directly applicable.
+% Changing the application is not always feasible and may not achieve
+% the desired improvement as depending requests need to be issued in
+% 1The “application” may be another database system component or an end-user application that uses the record access interfaces provided by the database engine.
+% separate batches, limiting interleaving opportunities. Short (or even
+% single-record) transactions also cannot benefit much due to the lack
+% of interleaving opportunity. It would be desirable to allow batching
+% operations across transactions, i.e., inter-transaction batching.
+% Second, prior work provided only piece-wise solutions, focusing
+% on optimizing individual database operations (e.g., index traversal [21] and hash join [5, 44]). Despite the significant improvement
+% (e.g., up to 3× faster for tree probing [21]), it was not clear how much
+% overall improvement one can expect when these techniques are
+% applied in a full database engine that involves various components.
+% Overall, these issues lead to two key questions:
+% • How should a database engine adopt coroutine-based software
+% prefetching, preferably without requiring application changes?
+% • How much end-to-end benefit can software prefetching bring to
+% a database engine under realistic workloads?
+
+
+\section{Different Methods using Coroutines}
+\section{Different coroutine approaches and their trade-offs}
+Citation test~\parencite{latex}.
+
+First approach was simple: create a coroutine each time from scratch for lookup.
+Bad performance, re-use coroutines so the creatio overhead is minimal and maybe create 5-20 coroutines and reuse them for all the lookups.
+First with co\_yield concept and caller has to resume the coroutine, but for caller it is complex to distinguish if
+
+
 % Verlauf von meiner Coroutines usage:
 
 % erst für jeden part eine coroutine erstellt und wiedre gelöscht -> ineffizient, weil erstellen von coroutinen viel Zeit und stack storage braucht.
@@ -30,68 +86,60 @@ Group Prefetching and AMAC
 
 
 
-
-\section{scheduler for multiple coroutines}
+\section{Scheduler for multiple coroutines}
 
 
 \begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}]
-  template<const size_t numCoroutines>
-    std::vector<typename ht_primary_key::Hashtable::Entry *>
-    lookupHTEntries(const ht_primary_key::Hashtable &ht, const std::span<const size_t> &lookups) noexcept {
-        // Compute the nr. of lookups for each coroutine
-        // Initialize the coroutines
-        std::vector<typename ht_primary_key::Hashtable::Entry *> entries;
-        entries.reserve(lookups.size() / 2);
-        std::array<Silent, numCoroutines> coroutines =
-                ([&ht, &lookups, &entries]<size_t... Is>(std::index_sequence<Is...>) {
-                    return std::array{lookup<numCoroutines>(ht, lookups, entries, Is)...};
-                })(std::make_index_sequence<numCoroutines>{});
-        // entries.reserve(lookups.size());
-        //std::cout << "Starting lookup with " << numCoroutines << " coroutines." << std::endl;
-
-        while (true) {
-            size_t activeCoroutines = 0;
-            for (auto &c: coroutines) {
-                // std::cout << "Coroutine " << activeCoroutines << " is active." << std::endl;
-                if (!c.h_.done()) {
-                    activeCoroutines++;
-                    c.h_.resume();
-                }
-            }
-            if (activeCoroutines == 0) {
-                break;
+template<const size_t numCoroutines>
+std::vector<typename ht_primary_key::Hashtable::Entry *>
+lookupHTEntries(const ht_primary_key::Hashtable &ht, const std::span<const size_t> &lookups) noexcept {
+    // Initialize the coroutines
+    auto result;
+    std::array<Silent, numCoroutines> coroutines =
+            ([&ht, &lookups, &result]<size_t... Is>(std::index_sequence<Is...>) {
+                return std::array{lookup<numCoroutines>(ht, lookups, result, Is)...};
+            })(std::make_index_sequence<numCoroutines>{});
+    while (true) {
+        size_t activeCoroutines = 0;
+        for (auto &c: coroutines) {
+            if (!c.h_.done()) {
+                activeCoroutines++;
+                c.h_.resume();
             }
         }
-
-        return std::move(entries);
+        if (activeCoroutines == 0) {
+            break;
+        }
     }
+    return result;
+}
 \end{lstlisting}
 
+% compare it to the presented scheduler in one of thes 01-09 papers
+
+
+\section{Testing Coroutines in Different DataStructures with different compilers across Different Machines}
 
 
 
 
-\section{Different coroutine approaches and their trade-offs}
-Citation test~\parencite{latex}.
-
-First approach was simple: create a coroutine each time from scratch for lookup.
-Bad performance, re-use coroutines so the creatio overhead is minimal and maybe create 5-20 coroutines and reuse them for all the lookups.
-First with co\_yield concept and caller has to resume the coroutine, but for caller it is complex to distinguish if
-
-\section{Why Coroutines and cache prefetching?}
-not amac and gp
-
-\section{Cache Prefetching}
-
-
-
-
-\section{testing on different machines and compilers and data structures}
 
 \section{Benchmarking Setup}
-doing this on different compilers and machines
+To evaluate the coroutine implementations, two benchmarking setups were explored: Google Benchmark and the perf-cpp framework developed at TU Dortmund.
+Google Benchmark offered a quick way to prototype individual microbenchmarks and was therefore used early on to debug coroutine state machines, validate
+correctness of lookups under different prefetch distances, and sanity-check throughput improvements on a small scale. Its minimal configuration effort and
+familiar API made it convenient for short, focused experiments, especially when iterating over scheduler changes or when verifying that compiler flags and
+prefetch intrinsics behaved as expected.
 
-% Benchmarking: Two different benchmarking setups are implemented. Google Benchmarks and perf-cpp from uni dortmund jmuehlig.
-% perf-ccp setup is more complex but superior to googl ebenchmarks in terms of flexibility and daatstructure creation and insertions.
-% Google Benchmarks was used for initial testing and debugging of the coroutines implementations as well as for verifying the results / benchmarks of perf-cpp.
+For the final evaluation, perf-cpp was chosen as the primary framework because it provides richer control over benchmark composition, data structure
+construction, and parameter sweeps. The framework allows building reusable benchmark fixtures that set up hash tables or trees with configurable key
+distributions and load factors, while still keeping the measurement harness lean. It also integrates well with the coroutine scheduler by letting the benchmark
+drive batches of lookups with controlled interleaving and by exposing timing hooks that separate setup, warm-up, and steady-state phases. This flexibility was
+essential to compare different coroutine designs (e.g., varying the number of reused coroutine instances or altering prefetch strategies) under consistent data
+and workload characteristics without duplicating setup code.
+
+Google Benchmark remained in the toolchain as a pointwise verifier: selected perf-cpp scenarios were mirrored with small Google Benchmark harnesses to confirm
+performance trends and to isolate regressions when changing coroutine internals. However, all reported measurements and conclusions in this thesis rely on
+perf-cpp runs, as that framework proved more expressive and better suited for constructing realistic, repeatable experiments across the evaluated data
+structures.
 

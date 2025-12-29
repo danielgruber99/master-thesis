@@ -24,7 +24,14 @@
 C++ Coroutines are available in the std namespace from the C++20 standard on, and from the C++23 standard there is a generator implementation based on the C++ 20 coroutine concept.
 % https://en.cppreference.com/w/cpp/language/coroutines
 
-A coroutine is a generalization of a function, being able additionally to normal functions to suspended execution and resumed it later on.
+A coroutine is a generalization of a function, being able additionally to normal functions to suspended execution and resumed it later on, as illustrated in \autoref{fig:function_vs_coroutine_execution}.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/function_vs_coroutine_execution.png}
+  \caption{Function vs Coroutine Execution}
+  % \quelle{\cite{ADaSurvey}}
+  \label{fig:function_vs_coroutine_execution}
+\end{figure}
 Any function is a coroutine if its definition contains at least one of these three keywords:
 \begin{itemize}
   \item co\_await - to suspend execution
@@ -351,7 +358,7 @@ struct promise_type{
 The Promise type is determined by the compiler from the return type of the coroutine using std::coroutine\_traits.
 
 As mentioned in \autoref{subsec:ExecutionOfACoroutine}, each coroutine is associated with a coroutine handle.
-This handle is a non-owning reference to the coroutine frame and can be used to resume execution of the coroutine or to destroy the coroutine frame.
+This handle is a non-owning reference to the coroutine frame and is used to resume execution of the coroutine or to destroy the coroutine frame.
 
 % \begin{lstlisting}[language=C, frame=single, caption={coroutine chat with await\_transform example}, label={lst:coroutine_chat_await_transform_example}]
 % // #include <coroutine> #include <iostream> #include <utility>
@@ -423,83 +430,55 @@ and how they can be potentially be hidden.
 \subsection{Definition of Cache Misses}\label{subsec:DefinitionOfCacheMisses}
 
 % CACHE MISSES von wikipedia, data misses, write misses, read misses
-
 To explain cache misses, first the underlying concept of caches in modern computer architectures has to be explained briefly.
 Caches are small, fast memory units located close to the CPU cores, designed to store frequently accessed data and instructions to reduce the average time to access memory.
 When the CPU needs to read or write data, it first checks if the data is present in the cache (a cache hit).
 Typically, there are three levels of caches (L1, L2, L3 or called LLC) with L1 being the smallest and fastest, and L3 being the largest and slowest.
-If the data is not found in the caches (a cache miss), it has to be fetched from the slower main memory, which incurs a significant performance penalty.
-% picture of memory hierarchy
+If the data is not found in the caches (a cache miss), it has to be fetched from the slower main memory.
 
-Cache misses are typically categorized into three main types: compulsory misses, capacity misses, and conflict misses.
+As described, a cache miss is a failed attempt to read or write a piece of data in the cache, which results in a main memory access with much longer latency.
+Data is transferred between memory and cache in fixed-size blocks called cache lines.
+When a cache line is requested, the cache checks if it contains the data at the requested memory location (a cache hit).
+If not (a cache miss), the cache allocates a new entry and fetches the data from main memory.
+Cache misses cause stalls because the CPU must wait for data to arrive from the slower main memory. Modern CPUs can execute hundreds of instructions in the time it takes to fetch a single cache line, making these stalls particularly costly. To mitigate this, modern architectures employ techniques such as out-of-order execution, which allows the CPU to execute independent instructions while waiting for cache miss data, and simultaneous multithreading (SMT), which enables an alternate thread to utilize the CPU core during the stall.
+There are three types of cache misses: instruction read miss, data read miss, and data write miss
+Instruction cache misses typically incur the largest penalty, as the processor must stall until the instruction is fetched from main memory.
+Data cache read misses cause smaller delays because independent instructions can continue execution while waiting for data and
+Data cache write misses result even in the shortest delays, as writes can be queued without blocking subsequent instructions.
+
+In this work, the focus lies on data read misses, as they are the most common type of cache misses encountered during data structure traversals.
+These data read cache misses are typically categorized into three main types: compulsory misses, capacity misses, and conflict misses.
 Compulsory misses occur on the first access to a block, as the data has not yet been loaded into the cache regardless of cache design.
 Capacity misses happen when the cache can not hold all the data actively used by a program during execution, meaning the working set exceeds the cache size.
 Conflict misses, also known as interference misses, occur when multiple memory addresses map to the same cache set, leading to evictions of useful data even though the cache is not full.
 For a multi-processor system this 3Cs group of cache misses can be extended to 4Cs.
 The 4th C are coherence misses arising from a cache line being invalidated due to modifications made by other processors (for L3 Cache as it is typically shared across cores) or threads (for L1, L2 and L3 Cache).
 
-% Research and literature have explored various strategies to mitigate cache misses. Increasing cache capacity can reduce both capacity and conflict misses, although it does not affect
-% compulsory misses.
-% Adjusting block size can also impact miss rates; larger blocks may reduce compulsory misses due to spatial locality but can increase conflict misses by reducing the number of sets in a
-% fixed-size cache.
-% Techniques such as loop nest optimization and virtual coloring are used in software to minimize conflict misses by ensuring that frequently accessed data does not map to the same cache set.
-% Additionally, cache replacement policies like LRU (Least Recently Used) and write strategies such as write-back or write-through are designed to manage data in the cache efficiently,
-% with the goal of minimizing the number of misses and their associated penalties.
-
-
-% % WRITE MISS
-% This is an old question, but I don't think any of the other answers quite explain what the text is saying.
-% A word is typically smaller than a cache line; a system might, for example, have words that are 8 bytes in size,
-% but L1 cache lines that are 64 bytes in size. A write of a word means overwriting some portion of that cache line, not the whole cache line.
-% Therefore, to perform such a write, you would typically need to load the rest of the 64-byte aligned line into cache, so that just the modified portion can be overwritten.
-% Another issue that the text doesn't mention, but is important in practice, is cache coherency.
-% On many multiprocessing architectures, memory semantics demands that every CPU sees every write occur in the same order.
-% Those that have more relaxed semantics still need some kind of memory sequencing otherwise CPUs can't synchronise.
-% The upshot is that a CPU often must gain some kind of exclusive write access to a cache line before it is allowed to write.
-% So even if a CPU has a copy of the cache line in its L1 cache, it may need to acquire that access, which is also a kind of write miss.
+In this work, the focus lies merely on the first two Cs, compulsory and capacity misses,
+as the first are inherent to the initial data access and the second can be mitigated through better data locality and prefetching techniques.
 
 %  Computer Organization and Design MIPS Edition 5th Edition The Hardware/Software Interface
 
-
-\subsection{Cause of Cache Misses Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
+\subsection{Cause of Cache Misses in Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
 
 Modern database engines utilize various in-memory data structures that are directly addressed by virtual memory pointers.
 Memory blocks used by these data structures are typically allocated from the heap and chained together using pointers.
 For example, the nodes of an in-memory B+-tree are dynamically allocated and deallocated as the tree grows and shrinks.
-To traverse such a tree from its root node to the target leaf node, the accessing thread must dereference multiple pointers sequentially from the root to the leaf, forming a random access pattern.
+To traverse such a tree from its root node to the target leaf node,
+the accessing thread must dereference multiple pointers sequentially from the root to the leaf, forming a random access pattern.
+Another example is a chaining Hashtable, where each bucket contains a linked list of entries that hash to the same index.
+To look up a key in such a hashtable, the accessing thread first computes the hash index, accesses the corresponding bucket,
+and then traverses the linked list by following pointers until it finds the desired key or reaches the end of the list.
 
 This pointer chasing behavior poses a significant challenge for hardware prefetchers.
-Such access patterns are very difficult, if not impossible, for hardware prefetchers to predict accurately, leading to a high likelihood of last-level cache misses upon each pointer dereference.
-As a result, in main-memory systems, data stalls often dominate total CPU execution time.
-Beyond tree-based indexes, version chains in multi-versioned concurrency control systems can also cause a significant amount of data stalls when the accessing thread searches for a particular version.
-In some systems, over 50\% of the total CPU cycles can be spent waiting for data to be loaded from memory to CPU caches.
-Hiding such stalls can potentially lead to much higher overall performance.
+Such access patterns are very difficult, if not impossible, for hardware prefetchers to predict accurately,
+leading to a high likelihood of last-level cache misses upon each pointer dereference.
+But this pointer chasing is also for software prefetching challenging, as the address of the next memory access is not known until the current access is completed
+and the node or linked list entry is fetched and processed to extract the next pointer.
 
-
-% TODO: make my example also with hashtable and pictures
-
+% TODO: make my example also with hashtable and pictures, rather in next chapter?
 
 \subsection{Techniques to counter Cache Misses}\label{subsec:TechniquesCounterCacheMisses}
-
-
-%Basic Idea. Software prefetching techniques [5, 21, 26, 44] use
-% workload semantics to issue prefetch instructions [18] to explicitly
-% bring data into CPU caches. Worker threads handle requests (e.g.,
-% tree search) in batches. To access data (e.g., a tree node) in request
-% 𝑡1 which may incur a cache miss, the thread issues a prefetch and
-% switches to another request 𝑡2, and repeats this process. While the
-% data needed by 𝑡1 is being fetched from memory to CPU cache,
-% the worker thread handles 𝑡2, which may further cause the thread
-% to issue prefetch and switch to another request. By the time the
-% worker thread switches back to 𝑡1, the hope is that the needed
-% data is (already and still) cache-resident. The thread then picks up
-% at where it left for 𝑡1, dereferences the pointer to the prefetched
-% data and continues executing 𝑡1 until the next possible cache miss
-% upon which a prefetch will be issued. It is important that the
-% switching mechanism and representation of requests are cheap and
-% lightweight enough to achieve a net gain
-
-
 
 The literature presents various software techniques to address cache misses.
 Based on their impact on the number of cache misses and the incurred penalty, these techniques can be categorized into three main approaches.
@@ -510,104 +489,98 @@ Based on their impact on the number of cache misses and the incurred penalty, th
   \item Hide the cache miss penalty by overlapping memory accesses.
 \end{itemize}
 
-The first approach aims to eliminate cache misses by increasing spatial and temporal locality.
-Locality can be improved through several methods: eliminating indirection by designing cache-conscious data structures, matching the data layout to the access pattern of the algorithm such that data accessed together is stored in contiguous space, or reorganizing memory accesses to increase locality through techniques like array blocking and tree blocking.
-However, these optimizations often require fundamental changes to data structure design and may not be applicable when the data structure layout is already optimized or when modifications would negatively impact other operations.
+The first approach improves cache locality by either eliminating indirection by designing cache-conscious data structures,
+matching the data layout to the access pattern of the algorithm such that data accessed together is stored in contiguous space,
+or reorganizing memory accesses. However, these optimizations often require fundamental changes to data structure designs.
 
 The second approach focuses on reducing the cache miss penalty by scheduling independent instructions to execute after a memory load.
-This approach increases instruction-level parallelism and leads to more effective out-of-order execution.
-To reduce the main-memory access penalty, a non-blocking load must be introduced early enough to allow independent instructions to execute while fetching data.
-This can be achieved through simple prefetching within an instruction stream or by exploiting simultaneous multithreading with helper threads that prefetch data.
-However, in scenarios like index lookups where one memory access depends on the previous one with few independent instructions in between, these techniques provide limited benefits.
+This increases instruction-level parallelism and leads to more effective out-of-order execution.
+Finally, to reduce the main-memory access penalty, a non-blocking load, a prefetch instruction, must be introduced early enough to allow independent instructions to execute while fetching data.
+However, this approach relies on the presence of independent instructions following the load and timing it correctly to ensure that the data is available when needed.
 
-The third approach seeks to hide the cache miss penalty by overlapping memory accesses.
-Modern memory systems can serve multiple memory requests in parallel (typically around 10 concurrent requests in current Intel CPUs),
-and exploiting this memory-level parallelism increases memory throughput.
-However, overlapping requires independent memory accesses that can be issued simultaneously.
-In the access chain of an index lookup, where each step depends on the result of the previous one,
-such independent accesses are not naturally available.
+The third approach seeks to hide the cache miss penalty by overlapping memory accesses, meaning issuing multiple memory requests in parallel.
+This, however, requires independent memory accesses which are not naturally available in dependent access patterns like index lookups.
 
-These traditional approaches provide limited benefits for individual index lookups with dependent memory accesses.
+These traditional approaches provide limited benefits for individual index lookups with dependent memory accesses if parallelism cannot be exploited.
 To effectively hide cache misses in such scenarios, techniques that can create parallelism across multiple independent operations are needed,
 such as processing operations in groups with interleaved execution.
 
+In the literature two main techniques have been proposed to achieve this, :
+\begin{itemize}
+  \item Group Prefetching (GP)
+  \item Asynchronous Memory Access Chaining (AMAC)
+  \item Coroutines
+\end{itemize}
 
-% TODO: AMAC AND GROUP PREFETCHING
-Hand-Crafted Approaches. The mechanism we just described
-fits naturally with many loop-based operations. Group prefetching
-and software pipelined prefetching [5] overlap multiple hash table
-lookups to accelerate hash joins. After a prefetch is issued, the
-control flow switches to execute the computation stage of another
-operation. Asynchronous memory access chaining (AMAC) [26] is
-432
-a general approach that allows one to transform a heterogeneous
-set of operations into state machines to facilitate switching between operations upon cache misses. A notable drawback of these
-approaches is they require developers hand-craft algorithms. The
-resulted code is typically not intuitive to understand and hard to
-maintain. This limits their application to simple or individual data
-structures and operations (e.g., tree traversal). Recent approaches
-tackle this challenge using lightweight coroutines, described next.
+Group Prefetching (GP) interleaves N identical operations across M predefined code stages, executing each operation through all stages sequentially before moving to the next stage.
+While GP maintains a "semi-synchronous" programming model, it has significant limitations:
+it requires knowing the number of stages in advance, and cannot efficiently handle early-terminating operations, leading to performance degradation on irregular access patterns.
 
-% In the literature, we find many software techniques to deal
-% with cache misses. Based on how they affect the number of
-% cache misses and the incurred penalty, these techniques fall
-% into the following three categories:
-% • Eliminate cache misses by increasing spatial and
-% temporal locality. Locality is increased by a) eliminating indirection, designing cache-conscious data structures like the CSB+-tree [28]; b) matching the data
-% layout to the access pattern of the algorithm, i.e, store
-% data that are accessed together in contiguous space; or
-% c) reorganizing memory accesses to increase locality,
-% e.g., with array [16] and tree blocking [14, 32]. In this
-% work, we assume that the index has the best possible
-% implementation and locality cannot be further increased without penalizing single lookups. Nonetheless,
-% our proposal can be applied to any index structure.
-% • Reduce the cache miss penalty by scheduling independent instructions to execute after a load; this
-% approach increases instruction-level parallelism and leads to more effective out-of-order execution. To reduce
-% the main-memory access penalty, a non-blocking load
-% has to be introduced early enough, allowing independent instructions to execute while fetching data. This
-% is achieved through simple prefetching within an instruction stream, or exploiting simultaneous multithreading with helper threads that prefetch data [31]. In
-% index lookups, however, one memory access depends
-% on the previous one with few independent instructions
-% in-between, so these techniques do not apply.
-% • Hide the cache miss penalty by overlapping memory accesses. The memory system can serve several
-% memory requests in parallel (10 in current Intel CPUs)
-% and exploiting this memory-level parallelism increases
-% memory throughput. However, overlapping requires
-% independent memory accesses, which do not exist in
-% the access chain of an index lookup.
-% Takeaway. These approaches do not benefit individual
-% index lookups. Next, we show how to hide the cache misses
-% of a group of lookups with interleaved execution.
+Asynchronous Memory Access Chaining (AMAC) transforms operations into state machines stored in a circular buffer,
+allowing different operations to execute different stages concurrently. This enables immediate reuse of completed operations without waiting for others.
+However, AMAC requires complete code rewriting, resulting in code that is difficult to understand and maintain.
 
+Both GP and AMAC achieve high performance through careful hand-coding, but at the cost of developer productivity.
+Coroutines offer an alternative that combines the benefits of both approaches: they enable interleaved execution like AMAC while preserving the synchronous programming model like GP,
+but with compiler-generated context-switching code rather than manual state machine implementation. Developers simply add suspension points (co\_await or co\_yield) after prefetch operations,
+and the compiler handles the efficient state management and context switching.
 
+All these techniques rely on using software prefetching to initiate memory transfers ahead of time which is explained in the next subsection.
 
+% Group prefetching and software pipelined prefetching [5] overlap multiple hash table
+% lookups to accelerate hash joins. After a prefetch is issued, the
+% control flow switches to execute the computation stage of another
+% operation. Asynchronous memory access chaining (AMAC) [26] is
+% a general approach that allows one to transform a heterogeneous
+% set of operations into state machines to facilitate switching between operations upon cache misses. A notable drawback of these
+% approaches is they require developers hand-craft algorithms. The
+% resulted code is typically not intuitive to understand and hard to
+% maintain. This limits their application to simple or individual data
+% structures and operations (e.g., tree traversal). or coroutines.
 
-\subsection{Software Prefetching}\label{subsec:SoftwarePrefetching}
-Hardware manufacturers have implemented various hardware prefetching techniques to automatically detect and pre-load data into caches before they are accessed by the CPU.
-These hardware prefetchers monitor memory access patterns and attempt to predict future accesses based on historical data.
-However, the reliance on hardware prefetchers has limitations, especially for applications with irregular access patterns where predictions may be inaccurate or insufficient.
-
-Typically, these hints are communicated via specific
-instructions embedded within modern ISAs such as x86 and ARMv8.
-Especially in the context of trees and hash tables, many studies
-
-The solution to overcome this is Software-based prefetching.
-It enables applications to proactively hint to the CPU about upcoming data accesses which for the hardware is hard or even impossible to predict.
-These hints, specific instrucctions in modern ISAs such as x86 and ARMv8, allow the hardware to move data asynchronously into the cache hierarchy,
-thereby reducing access latency by overlapping data transfers with computation.
-
-% However, implementing effective software prefetching presents several challenges.
 % Consider traversing a tree-like data structure: the immediate succession of identifying
 % and accessing a node leaves negligible time for the hardware to load the data, even with prefetch hints.
 % To create a sufficient temporal gap between pinpointing the next node and accessing it, various methods have been explored.
 % The key approach is to break operations into stages and use pipelining, overlaying the prefetch of one item with the compute of others, for example, by processing operations in groups.
 % A more general approach utilizes asynchronous control flow abstractions, such as coroutines and fine-grained tasks.
 
+\subsection{Software Prefetching}\label{subsec:SoftwarePrefetching}
+Hardware manufacturers have implemented various hardware prefetching techniques to automatically detect and pre-load data into caches before they are accessed by the CPU.
+These hardware prefetchers monitor memory access patterns and attempt to predict future accesses based on historical data.
+However, the reliance on hardware prefetchers has limitations, especially for applications with irregular access patterns where predictions may be inaccurate or insufficient.
+
+The solution to overcome this is Software-based prefetching.
+It enables applications to proactively hint to the CPU about upcoming data accesses which for the hardware is hard or even impossible to predict.
+These hints, specific instrucctions in modern ISAs such as x86 and ARMv8, allow the hardware to move data asynchronously into the cache hierarchy,
+thereby reducing access latency by overlapping data transfers with computation.
+
 With Software prefetching, proactively hinting the CPU what data to preload into the cache, timing of these prefetches is crucial for effectiveness.
 When software executes the prefetching instruction too early before the actual access, the data may have already been evicted from the cache when needed.
 Conversely, if prefetched too late, the data might not be transferred to the cache completely, potentially causing the CPU to stall.
 The presence of intricate memory systems like NUMA and high-bandwidth memory,
 as well as the increasing sophistication of CPUs with out-of-order execution and superscalar architectures, further complicate achieving precise timing.
+
+Before diving into the details of software prefetching, it is essential to understand the data load process through the memory subsystem of modern computer architectures.
+As illustrated in \autoref{fig:DataLoadThroughMemorySubsystem}, when the CPU executes a load instruction to read data from memory,
+it first translates the given virtual address into a physical address using the Memory Management Unit (MMU), in particular the Translation Lookaside Buffer (TLB).
+If the TLB does not contain the mapping for the virtual address, a page-table walk is initiated to retrieve the mapping from the page tables in memory and to finally update the TLB.
+Once the physical address is determined, the CPU checks the cache hierarchy (L1, L2, L3) for the requested data.
+If the data is found in any of the cache levels (a cache hit), it is returned to the CPU.
+However, if the data is not present in the caches (a cache miss), the CPU issues a request to the main memory to fetch the data.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/sequenzdiagramm_data_load_final.drawio.png}
+  \caption{Data Load through Memory Subsystem}
+  % \quelle{\cite{ADaSurvey}}
+  \label{fig:DataLoadThroughMemorySubsystem}
+\end{figure}
+
+% Lifecycle of a Software Prefetch
+Back to pretetching, modern platforms offer several prefetch instructions to target different levels of the cache hierarchy, with each instruction initiating the transfer of one cache line.
+As visualized in \autoref{fig:PrefetchLifecycleThroughMemorySubsystem}, when the software executes a prefetch, the logical address is first translated into a physical one.
+This procedure happens synchronously—if the translation is not cached within the Translation Lookaside Buffer (TLB),
+the CPU contacts a Page Miss Handler (PMH) before continuing execution of the prefetch instruction.
 
 \begin{figure}[h]
   \centering
@@ -616,20 +589,6 @@ as well as the increasing sophistication of CPUs with out-of-order execution and
   % \quelle{\cite{ADaSurvey}}
   \label{fig:PrefetchLifecycleThroughMemorySubsystem}
 \end{figure}
-
-% Lifecycle of a Software Prefetch
-Modern platforms offer several prefetch instructions to target different levels of the cache hierarchy, with each instruction initiating the transfer of one cache line.
-As visualized in \autoref{fig:PrefetchLifecycleThroughMemorySubsystem}, when the software executes a prefetch, the logical address is first translated into a physical one.
-This procedure happens synchronously—if the translation is not cached within the Translation Lookaside Buffer (TLB), the CPU contacts a Page Miss Handler (PMH) before continuing execution of the prefetch instruction.
-
-% ERROR: Figure conflicts with previous figure, i think first TLB is asked, then caches, and if miss, PMH is asked
-% \begin{figure}[h]
-%   \centering
-%   \includegraphics[width=0.6\paperwidth]{figures/sequenzdiagramm_data_load.png}
-%   \caption{Data Load through Memory Subsystem}
-%   % \quelle{\cite{ADaSurvey}}
-%   \label{fig:DataLoadThroughMemorySubsystem}
-% \end{figure}
 
 Once the physical address is known and the request misses the L1 data cache (L1d), the hardware triggers the transfer from memory to caches asynchronously.
 The L1d cache requests the cache line through the Line Fill Buffer (LFB), which acts as a buffer-like structure interfacing between the L1d and L2 cache to communicate requests on a cache-line granularity.
@@ -653,6 +612,10 @@ Second, due to the limited number of LFB entries (typically between 3 and 24), t
 If an excessive volume of prefetch requests is issued rapidly, the LFB becomes saturated and cannot accept further requests.
 Under this circumstance, the CPU will either stall until an LFB slot becomes available or drop new prefetch requests.
 This limitation necessitates careful management of prefetch intensity to balance memory-level parallelism with hardware constraints.
+
+Thus, to efficiently exploit software prefetching in data structures like trees and hash tables, these prefetch instructions must be strategically placed within the code
+to have the data in cache when needed. As mentioned in previous chapter, techniques such as breaking operations into stages and pipelining,
+or utilizing asynchronous control flow abstractions like coroutines, can facilitate effective prefetching by creating sufficient temporal gaps between prefetch issuance and data access.
 
 
 % https://dl.acm.org/doi/epdf/10.1145/2133382.2133384
