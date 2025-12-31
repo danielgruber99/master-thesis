@@ -48,47 +48,27 @@ this thesis explores their potential in hiding cache misses in pointer-chasing d
 % thereby reducing the time spent waiting for data to arrive.
 % Coroutines provide a powerful mechanism to implement this prefetching strategy effectively.
 
-
 % more on why this thesis really focusses on coorutines? and this specific use case of hiding cache misses with the new c++20 coroutines?
-
 % comparison to amac and bulk prefetching
 
-% With the recent standardization in C++20 [19], coroutines greatly
-% ease the implementation of software prefetching. Coroutines [38]
-% are functions that can suspend voluntarily and be resumed later.
-% Functions that involve pointer chasing can be written as coroutines
-% which are executed (interleaved) in batches.
-% Before dereferencing
-% a pointer in coroutine 𝑡1, the thread issues a prefetch followed
-% by a suspend to pause 𝑡1 and switches to another coroutine 𝑡2,
-% overlapping data fetching in 𝑡1 and computation in 𝑡2.
-% Compared to earlier approaches [5, 26], coroutines only require
-% prefetch/suspend be inserted into sequential code, greatly simplifying implementation while delivering high performance, as the
-% switching overhead can be cheaper than a last-level cache miss [21].
-% However, adopting software prefetching remains challenging.
-% First, existing approaches typically use intra-transaction batching which mandates multi-key interfaces that can break backward
-% compatibility. For example, in Figure 1(b) an application1 uses
-% multi_get to retrieve a batch of records at once in a transaction. Cache misses caused by probing k1 (k2) in a tree are hidden behind the computation part of probing k2 (k1). While intratransaction batching is a natural fit for some operators (e.g., INpredicate queries [44, 45]), it is not always directly applicable.
-% Changing the application is not always feasible and may not achieve
-% the desired improvement as depending requests need to be issued in
-% 1The “application” may be another database system component or an end-user application that uses the record access interfaces provided by the database engine.
-% separate batches, limiting interleaving opportunities. Short (or even
-% single-record) transactions also cannot benefit much due to the lack
-% of interleaving opportunity. It would be desirable to allow batching
-% operations across transactions, i.e., inter-transaction batching.
-% Second, prior work provided only piece-wise solutions, focusing
-% on optimizing individual database operations (e.g., index traversal [21] and hash join [5, 44]). Despite the significant improvement
-% (e.g., up to 3× faster for tree probing [21]), it was not clear how much
-% overall improvement one can expect when these techniques are
-% applied in a full database engine that involves various components.
+% With the recent standardization in C++20 [19], coroutines greatly ease the implementation of software prefetching. Coroutines [38] are functions that can suspend voluntarily and be resumed later.
+% Functions that involve pointer chasing can be written as coroutines which are executed (interleaved) in batches.
+% Before dereferencing a pointer in coroutine 𝑡1, the thread issues a prefetch followed by a suspend to pause 𝑡1 and switches to another coroutine 𝑡2,
+% overlapping data fetching in 𝑡1 and computation in 𝑡2. Compared to earlier approaches [5, 26], coroutines only require
+% prefetch/suspend be inserted into sequential code, greatly simplifying implementation while delivering high performance, as the switching overhead can be cheaper than a last-level cache miss [21].
+% However, adopting software prefetching remains challenging. First, existing approaches typically use intra-transaction batching which mandates multi-key interfaces that can break backward compatibility.
+% For example, in Figure 1(b) an application1 uses multi_get to retrieve a batch of records at once in a transaction. Cache misses caused by probing k1 (k2) in a tree are hidden behind the computation part of probing k2 (k1). While intratransaction batching is a natural fit for some operators (e.g., INpredicate queries [44, 45]), it is not always directly applicable.
+% Changing the application is not always feasible and may not achieve the desired improvement as depending requests need to be issued in
+% The “application” may be another database system component or an end-user application that uses the record access interfaces provided by the database engine.
+% separate batches, limiting interleaving opportunities. Short (or even single-record) transactions also cannot benefit much due to the lack of interleaving opportunity. It would be desirable to allow batching operations across transactions, i.e., inter-transaction batching.
+% Second, prior work provided only piece-wise solutions, focusing on optimizing individual database operations (e.g., index traversal [21] and hash join [5, 44]). Despite the significant improvement (e.g., up to 3× faster for tree probing [21]), it was not clear how much
+% overall improvement one can expect when these techniques are applied in a full database engine that involves various components.
 % Overall, these issues lead to two key questions:
-% • How should a database engine adopt coroutine-based software
-% prefetching, preferably without requiring application changes?
-% • How much end-to-end benefit can software prefetching bring to
-% a database engine under realistic workloads?
+% • How should a database engine adopt coroutine-based software prefetching, preferably without requiring application changes?
+% • How much end-to-end benefit can software prefetching bring to a database engine under realistic workloads?
 
 
-\subsection{Different Methods using Coroutines}\label{subsec:DifferentMethodsUsingCoroutines}
+% \subsection{Different Methods using Coroutines}\label{subsec:DifferentMethodsUsingCoroutines}
 \subsection{Different coroutine approaches and their trade-offs}\label{subsec:}
 % Citation test~\parencite{latex}.
 
@@ -137,7 +117,6 @@ If the lookup is not yet finished, the coroutine simply suspends without modifyi
 % -> Vorteil von wiederverwendbaren Coroutinen und einfacher handhabbar mit co_await auch wenn nicht gefunden oder "noch" nicht.
 
 
-
 \subsection{Scheduler for multiple coroutines}\label{subsec:SchedulerForCoroutines}
 
 
@@ -176,6 +155,167 @@ lookupEntries(datastructure ds, lookupsVector lookups) noexcept {
 \end{lstlisting}
 
 
+% ========= Using Coroutines in data structures =============
+\section{Using Coroutines in different data structures}\label{sec:UsingCoroutinesInDifferentDataStructures}
+
+
+
+
+% ----------- Hashtable -----------
+\subsection{Coroutines in chaining Hashtable}\label{sec:CoroutinesInHashtable}
+
+\begin{lstlisting}[language=C, frame=single, caption={coroutine lookup in chaining hashtable}, label={lst:coroutine_ht_lookup}]
+template<const size_t numCoroutines>
+    Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
+                  const size_t offset) noexcept {
+        auto idx = offset; size_t key; uint64_t hashIdx;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+            hashIdx = hashKey(key) & ht.mask;
+            PREFETCH(&(ht.ht[hashIdx]));    // Initial prefetch of the first value
+            co_await std::suspend_always{}; // Suspend the coroutine until resumed
+
+            auto result = ht.ht[hashIdx]; // Read the previously cached value
+
+            while (!((result == nullptr) || (result->key == key))) {
+                PREFETCH(result->next); // Prefetch the next entry in the linked list
+                co_await std::suspend_always{};
+                result = result->next;
+            }
+            if (result != nullptr) results.push_back(result);
+        }
+        co_return;
+    }
+\end{lstlisting}
+
+
+
+
+% --------- Linear Probing Hashtable ------------
+\subsection{Coroutines in linear probing hashtable}\label{sec:CoroutinesInLinearProbingHashtable}
+
+
+\begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
+template<const size_t numCoroutines>
+    Task lookup_ht_entry_t(const linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t> &ht,
+                             const auto &lookups, auto &results, const size_t offset) noexcept {
+        auto idx = offset;
+        size_t key;
+        uint64_t hashIdx;
+        uint64_t hash;
+        linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *data = nullptr;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+            hash = ht.ComputeHash(key);
+            uint64_t slot = hash & ht.bitmask;
+            uint64_t salt = ht.ExtractSalt(hash);
+
+            // Find SLOT
+            linear_probing_ht_duckdb::ht_entry_t entry;
+            while (true) {
+                PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
+                co_await std::suspend_always{}; // Suspend the coroutine until resumed
+                entry = ht.entries[slot];       // Read the previously cached value
+                if (!entry.IsOccupied()) {
+                    // Empty slot found
+                    break;
+                }
+                if (ht.use_salts) {
+                    // Check salt first (bloom filter)
+                    if (entry.GetSalt() == salt) {
+                        // Salt matches, need to check actual key
+                        data = reinterpret_cast<
+                                linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
+                                entry.GetPointer());
+                        if (data && ht.key_equal(data->key, key)) {
+                            entry = ht.entries[slot]; // Found matching key
+                            break;
+                        }
+                    }
+                } else {
+                    // No salt optimization, check key directly
+                    data = reinterpret_cast<
+                            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
+                            entry.GetPointer());
+                    if (data && ht.key_equal(data->key, key)) {
+                        entry = ht.entries[slot]; // Found matching key
+                        break;
+                    }
+                }
+
+                // Continue linear probing
+                data = nullptr;
+                linear_probing_ht_duckdb::IncrementAndWrap(slot, ht.bitmask);
+            }
+
+            if(data == nullptr) {
+                continue; // Not found
+            }
+            // Found an entry, retrieve all values in the chain
+            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *current = data;
+            while (current) {
+                results.push_back(current);
+                PREFETCH(current->next);
+                co_await std::suspend_always();
+                current = current->next;
+            }
+        }
+
+        co_return;
+    }
+\end{lstlisting}
+
+
+
+
+% --------- B+ Tree ------------
+\subsection{Coroutines in B+ Tree}\label{sec:CoroutinesInBPlusTree}
+
+\begin{lstlisting}[language=C++, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}]
+template<typename Key_t, typename Value_t, const size_t numCoroutines>
+    Task lookup(const bptree::BPTree<Key_t, Value_t> &t, const auto &lookups, auto &results,
+                  const size_t offset) noexcept {
+        auto idx = offset;
+        uint64_t key;
+
+        for (; idx < lookups.size(); idx += numCoroutines) {
+            key = lookups[idx];
+
+            auto node = t.root;
+            while (!node->isLeaf()) {
+                size_t i = 0;
+                while (i < node->nr_keys && key >= node->keys[i]) {
+                    i++;
+                }
+                PREFETCH(std::move(dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i]));
+                co_await std::suspend_always{};
+                node = dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i];
+            }
+            bptree::LeafNode<Key_t, Value_t> *leafNode =
+                    std::move(dynamic_cast<bptree::LeafNode<Key_t, Value_t> *>(node));
+
+            // here I could do better search algorithm (binary search) but for now I just do linear search
+            for (size_t i = 0; i < leafNode->nr_keys; i++) {
+                if (leafNode->keys[i] == key) {
+                    results.push_back(std::make_tuple(std::move(key), std::move(leafNode->values[i])));
+                    break; // Stop searching if key is found
+                }
+            }
+        }
+
+        co_return;
+    }
+\end{lstlisting}
+
+
+
+
+
+
+
+% ========= Benchmarking Setup =============
 \section{Benchmarking Setup}\label{sec:BenchmarkingSetup}
 
 \subsection{Testing Coroutines in Different DataStructures with different compilers across Different Machines}\label{CoroutinesDifferentDataStructuresCompilersMachines}
@@ -213,6 +353,7 @@ and better suited for constructing realistic, repeatable experiments across the 
 
 % for duckdb integration duckdb's itnegrated benchmarking framework is used,
 % should i mention this here if i put the duckdb integration in the data structures chapter? maybe, but probably better to have dedicated duckdb chapter
+
 
 \subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
 %TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
