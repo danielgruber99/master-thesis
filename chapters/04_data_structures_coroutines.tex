@@ -12,10 +12,17 @@
 % interviews
 
 \chapter{Using Coroutines and Cache Prefetching in different DataStructures for hiding cache-misses}\label{chapter:CoroInDatastructures}
+This chapter focuses on the implementation and evaluation of coroutines in various pointer-chasing data structures,
+including chaining hash tables, linear probing hash tables, and B+ trees.
+It explains how coroutines are integrated into these data structures to hide cache misses during lookups
+and presents benchmarking results to assess their performance impact.
+
+% why do I use these data structures? and not others, because they are widely used in databases and other systems that require efficient data retrieval.
 
 % =========== Hashtable =============
 \section{Coroutines in chaining Hashtable}\label{sec:CoroutinesInHashtable}
-\subsection{Implementation}
+% \subsection{Implementation}
+
 \begin{lstlisting}[language=C, frame=single, caption={coroutine lookup in chaining hashtable}, label={lst:coroutine_ht_lookup}]
 template<const size_t numCoroutines>
     Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
@@ -42,14 +49,14 @@ template<const size_t numCoroutines>
 \end{lstlisting}
 
 
-\subsection{Benchmarking and Measurements}
-\subsection{Results}%also across different hardware architectures
+% \subsection{Benchmarking and Measurements}
+% \subsection{Results}%also across different hardware architectures
 
 
 % =========== Linear Probing Hashtable =============
 \section{Coroutines in linear probing hashtable}\label{sec:CoroutinesInLinearProbingHashtable}
 
-\subsection{Implementation}
+% \subsection{Implementation}
 
 \begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
 template<const size_t numCoroutines>
@@ -124,15 +131,14 @@ template<const size_t numCoroutines>
 
 
 
-\subsection{Measurements}
-
-\subsection{Results}%also across different hardware architectures
+% \subsection{Measurements}
+% \subsection{Results}%also across different hardware architectures
 
 
 
 % =========== B+ Tree =============
 \section{Coroutines in B+ Tree}\label{sec:CoroutinesInBPlusTree}
-\subsection{Implementation}
+% \subsection{Implementation}
 
 \begin{lstlisting}[language=C++, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}]
 template<typename Key_t, typename Value_t, const size_t numCoroutines>
@@ -171,11 +177,8 @@ template<typename Key_t, typename Value_t, const size_t numCoroutines>
 \end{lstlisting}
 
 
-\subsection{Measurements}
-
-
-\subsection{Results}%also across different hardware architectures
-
+% \subsection{Measurements}
+% \subsection{Results}%also across different hardware architectures
 
 
 

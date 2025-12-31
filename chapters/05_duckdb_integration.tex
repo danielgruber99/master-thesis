@@ -15,7 +15,6 @@ This design choice optimizes DuckDB for analytical queries, and in embedded scen
 To provide transactional guarantees (ACID properties), DuckDB employs its custom bulk-optimized multi-version concurrency control (MVCC) and enables data to be stored in persistent, single-file databases.
 Additionally, DuckDB supports secondary indexes to speed up queries trying to find a single table entry.
 
-
 JOINS
 DuckDB supports several join algorithms, including hash join, sort-merge join, and index join.
 The system also implements join ordering optimization using dynamic programming and a greedy fallback for complex join graphs.
@@ -54,6 +53,7 @@ In this thread coroutines can easily integrated as they are asynchronoulsy calle
 
 
 \section{Benchmarking}\label{section:Benchmarking}
+which benchmarking used, integrated benchmarkign framework of duckdb and only tpch queries
 
 \subsection{Results per machine}\label{subsection:ResultsPerMachine}
 
