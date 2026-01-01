@@ -103,6 +103,7 @@ This complexity and the need to handle three different states led to the final a
 The coroutine function then writes the found value into the provided pointer/reference when the lookup is successful.
 If the lookup is not yet finished, the coroutine simply suspends without modifying the pointer/reference.
 
+This final approach is from this point on used for all coroutine implementations in different data structures throughout this thesis.
 
 % Verlauf von meiner Coroutines usage:
 % erst für jeden part eine coroutine erstellt und wiedre gelöscht -> ineffizient, weil erstellen von coroutinen viel Zeit und stack storage braucht.
@@ -118,18 +119,9 @@ If the lookup is not yet finished, the coroutine simply suspends without modifyi
 
 
 \subsection{Scheduler for multiple coroutines}\label{subsec:SchedulerForCoroutines}
-
-
-The presented scheduler in \parencite{corobase}, illustrated in \autoref{lst:corobase_scheduler}
-\begin{lstlisting}[language=Python, caption={CoroBase Scheduler for lookup}, label={lst:corobase_scheduler}]
-for i = 0 to batch_size - 1:
-    coroutine[i] = foo(...);
-while any(coroutine_promises, x: not x.done()):
-    for i = 0 to batch_size - 1:
-        if not coroutine[i].done():
-            coroutine[i].resume()
-\end{lstlisting}
-
+As in previous section \ref{subsec:DifferentMethodsUsingCoroutines}, the final approach uses a fixed number of coroutines that are created once at the beginning of the lookup process and re-used for multiple lookups.
+To manage the execution of these multiple coroutines,
+a simple scheduler is implemented that resumes each coroutine in a round-robin fashion until all lookups are processed, illustrated in \autoref{lst:scheduler}.
 
 \begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}]
 template<const size_t numCoroutines>
@@ -154,12 +146,30 @@ lookupEntries(datastructure ds, lookupsVector lookups) noexcept {
 }
 \end{lstlisting}
 
+Comparing this independently developed and implemented scheduler to the one used in CoroBase \parencite{corobase} (see \autoref{lst:corobase_scheduler}),
+both schedulers follow a similar round-robin approach to resume coroutines until all tasks are completed.
+However, the CoroBase scheduler is presented in a more abstract pseudocode format, while the implemented scheduler in \autoref{lst:scheduler} is written in concrete C++ code,
+showing how to create and manage an array of coroutine instances using C++ templates and standard library features.
+Especially, the efficient use of C++ template metaprogramming to create an array of coroutines at compile time is a notable difference
+and the handling of checking if all coroutines done.
+
+\begin{lstlisting}[language=Python, caption={CoroBase Scheduler for lookup}, label={lst:corobase_scheduler}]
+for i = 0 to batch_size - 1:
+    coroutine[i] = foo(...);
+while any(coroutine_promises, x: not x.done()):
+    for i = 0 to batch_size - 1:
+        if not coroutine[i].done():
+            coroutine[i].resume()
+\end{lstlisting}
+
 
 % ========= Using Coroutines in data structures =============
 \section{Using Coroutines in different data structures}\label{sec:UsingCoroutinesInDifferentDataStructures}
 
-
-
+This section describes the integration of coroutines into different pointer-chasing data structures by using aforementioned scheduler.
+It explains how coroutines are integrated into chaining hash tables, linear probing hash tables, and B+ trees.
+For each data structure, the implementation of the coroutine-based lookup function is presented,
+pointing out details and key aspects of the implementation.
 
 % ----------- Hashtable -----------
 \subsection{Coroutines in chaining Hashtable}\label{sec:CoroutinesInHashtable}
@@ -188,8 +198,6 @@ template<const size_t numCoroutines>
         co_return;
     }
 \end{lstlisting}
-
-
 
 
 % --------- Linear Probing Hashtable ------------
@@ -308,10 +316,6 @@ template<typename Key_t, typename Value_t, const size_t numCoroutines>
         co_return;
     }
 \end{lstlisting}
-
-
-
-
 
 
 
