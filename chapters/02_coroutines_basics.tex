@@ -560,7 +560,7 @@ Conversely, if prefetched too late, the data might not be transferred to the cac
 The presence of intricate memory systems like NUMA and high-bandwidth memory,
 as well as the increasing sophistication of CPUs with out-of-order execution and superscalar architectures, further complicate achieving precise timing.
 
-Before diving into the details of software prefetching, it is essential to understand the data load process through the memory subsystem of modern computer architectures.
+Before diving into the details of software prefetching, a brief illustration of how data is loaded through the memory subsystem is provided.
 As illustrated in \autoref{fig:DataLoadThroughMemorySubsystem}, when the CPU executes a load instruction to read data from memory,
 it first translates the given virtual address into a physical address using the Memory Management Unit (MMU), in particular the Translation Lookaside Buffer (TLB).
 If the TLB does not contain the mapping for the virtual address, a page-table walk is initiated to retrieve the mapping from the page tables in memory and to finally update the TLB.
@@ -582,6 +582,9 @@ As visualized in \autoref{fig:PrefetchLifecycleThroughMemorySubsystem}, when the
 This procedure happens synchronously—if the translation is not cached within the Translation Lookaside Buffer (TLB),
 the CPU contacts a Page Miss Handler (PMH) before continuing execution of the prefetch instruction.
 
+% MoreoverIn particular, in Intel processors the transfer of data from L2 to L1 Cache goes through the Line Fill Buffer (LFB) , a hardware component to manage cache line
+% transfers between L1 and L2 cache.
+
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.6\paperwidth]{figures/prefetch_instructions_lifecycle_through_memory_subsystem.png}
@@ -595,6 +598,7 @@ The L1d cache requests the cache line through the Line Fill Buffer (LFB), which 
 For every cache line that misses the L1d, the CPU allocates a slot in the LFB.
 This nature makes it straightforward to implement asynchronous prefetches: the desired cache line does not cause the instruction to wait until the data is transferred into the cache but only until the miss is communicated to the LFB.
 Furthermore, the LFB enables the CPU to handle several pending requests simultaneously without blocking, supporting out-of-order execution and performing micro-optimizations like merging multiple requests to the same cache line.
+Note, that on amd platforms the LFB is referred to as Miss Address Buffer (MAB) whereas LFB is the terminology used in Intel architectures.
 
 The specific software prefetch instruction dictates how close the data is moved to the CPU.
 In the x86 ISA, most prefetch instructions clearly specify the cache level target for the fetched data:

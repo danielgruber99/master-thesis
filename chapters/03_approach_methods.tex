@@ -32,12 +32,22 @@ they enable interleaved execution like AMAC while preserving the synchronous pro
 but with compiler-generated context-switching code rather than manual state machine implementation.
 Suspension points like co\_await or co\_yield can be simply added after prefetch operations,
 and the compiler handles the the efficient state management and context switching by transforming the coroutine function into a state machine.
+This significantly reduces the implementation complexity compared to AMAC, and also to GP, as the coroutine syntax allows writing code in a straightforward sequential manner.
 
 As Coroutines are already widely used in asynchronous programming to handle I/O-bound tasks without blocking threads successfully in C++ applications,
 this thesis explores their potential in hiding cache misses in pointer-chasing data structures across machines and compilers.
 
+For the pretch operation itself, the x86 intrinsic \_mm\_prefetch is used to issue prefetch instructions to the CPU.
+\begin{lstlisting}[language=C, frame=single, caption={Prefetch macro}, label={lst:prefetch_macro}]
+#define PREFETCH(addr) _mm_prefetch(addr, _MM_HINT_NTA)
+\end{lstlisting}
 
+
+% why different nr of Coroutines? because of LFB size, which provides best performance
 % TODOOO: explain why using prefetchT0YPE_T0 vs T1 or T2
+% more on why this thesis really focusses on coorutines? and this specific use case of hiding cache misses with the new c++20 coroutines?
+% comparison to amac and bulk prefetching
+
 
 
 % Pointer chasing data structures, such as hash tables with chaining or linear probing, and tree-based structures like B-trees or binary search trees,
@@ -47,9 +57,6 @@ this thesis explores their potential in hiding cache misses in pointer-chasing d
 % By issuing prefetch instructions ahead of time, the CPU can overlap memory access latency with computation,
 % thereby reducing the time spent waiting for data to arrive.
 % Coroutines provide a powerful mechanism to implement this prefetching strategy effectively.
-
-% more on why this thesis really focusses on coorutines? and this specific use case of hiding cache misses with the new c++20 coroutines?
-% comparison to amac and bulk prefetching
 
 % With the recent standardization in C++20 [19], coroutines greatly ease the implementation of software prefetching. Coroutines [38] are functions that can suspend voluntarily and be resumed later.
 % Functions that involve pointer chasing can be written as coroutines which are executed (interleaved) in batches.
@@ -123,7 +130,7 @@ As in previous section \ref{subsec:DifferentMethodsUsingCoroutines}, the final a
 To manage the execution of these multiple coroutines,
 a simple scheduler is implemented that resumes each coroutine in a round-robin fashion until all lookups are processed, illustrated in \autoref{lst:scheduler}.
 
-\begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}]
+\begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}, numbers=left]
 template<const size_t numCoroutines>
 std::vector<typename resultType>
 lookupEntries(datastructure ds, lookupsVector lookups) noexcept {
@@ -150,8 +157,11 @@ Comparing this independently developed and implemented scheduler to the one used
 both schedulers follow a similar round-robin approach to resume coroutines until all tasks are completed.
 However, the CoroBase scheduler is presented in a more abstract pseudocode format, while the implemented scheduler in \autoref{lst:scheduler} is written in concrete C++ code,
 showing how to create and manage an array of coroutine instances using C++ templates and standard library features.
-Especially, the efficient use of C++ template metaprogramming to create an array of coroutines at compile time is a notable difference
-and the handling of checking if all coroutines done.
+Especially, using C++ template metaprogramming to create an array of coroutines at compile time
+and the handling of checking if all coroutines are finished are to be highlighted.
+By counting active coroutines in each iteration, and breaking the while loop only when none are left,
+the implemented scheduler reduces unnecessary checks and improves branch prediction as much as possible as only
+in the one last case where all coroutines are done, the loop breaks and the branch prediction is potentially wrong.
 
 \begin{lstlisting}[language=Python, caption={CoroBase Scheduler for lookup}, label={lst:corobase_scheduler}]
 for i = 0 to batch_size - 1:
@@ -173,159 +183,204 @@ pointing out details and key aspects of the implementation.
 
 % ----------- Hashtable -----------
 \subsection{Coroutines in chaining Hashtable}\label{sec:CoroutinesInHashtable}
+The first datastructure where coroutines are integrated is a chaining hashtable.
+The chaining hashtable consists of an array of buckets,
+where each bucket contains a linked list of entries that hash to the same index.
+When performing a lookup, the hash index is computed from the key, and the corresponding bucket is accessed.
+The linked list in the bucket is then traversed to find the entry with the matching key.
+The size of the hashtable is chosen to be a power of two to allow efficient computation of the hash index using a bitwise AND operation with a mask
+and is the next power of two of the handed-over size during construction.
+So for all hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
+The hash function used is the MurmurHash3 algorithm:% \parencite{murmurhash3}.
+
+The coroutine-based lookup function for the chaining hashtable is shown in \autoref{lst:coroutine_ht_lookup}.
+For schedulign multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
+Each coroutine processes a fixed-size subset of the lookup keys, determined by the offset parameter and the total number of coroutines,
+meaning that each coroutine from start has its own index to start processing keys from and does not consider if other coroutines
+are already finished with their subset of keys that they continue to process other keys from other coroutines.
+The Coroutines are eagerly started and for each key, the hash index is computed, and a prefetch instruction is issued for the
+corresponding bucket to bring the first entry into the cache. Directly after the prefetch, the coroutine suspends itself using co\_await.
+When the coroutine is resumed, it reads the prefetched entry and eventually traverses the linked list in the bucket to find the matching key
+until either the key is found or the end of the list is reached.
+If a matching key for the to searching key is found, the corresponding entry is added to the results vector,
+a pointer/reference passed into the coroutine function from the calling scheduler.
+The prefetches are always directly followed by a suspension of the coroutine to allow other coroutines to run while the data is being fetched into the cache.
+If one coroutine is finished it returns with co\_return and the scheduler will not resume it anymore.
 
 \begin{lstlisting}[language=C, frame=single, caption={coroutine lookup in chaining hashtable}, label={lst:coroutine_ht_lookup}]
 template<const size_t numCoroutines>
-    Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
-                  const size_t offset) noexcept {
-        auto idx = offset; size_t key; uint64_t hashIdx;
+Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
+                const size_t offset) noexcept {
+    auto idx = offset; size_t key; uint64_t hashIdx;
 
-        for (; idx < lookups.size(); idx += numCoroutines) {
-            key = lookups[idx];
-            hashIdx = hashKey(key) & ht.mask;
-            PREFETCH(&(ht.ht[hashIdx]));    // Initial prefetch of the first value
-            co_await std::suspend_always{}; // Suspend the coroutine until resumed
+    for (; idx < lookups.size(); idx += numCoroutines) {
+        key = lookups[idx];
+        hashIdx = hashKey(key) & ht.mask;
+        PREFETCH(&(ht.ht[hashIdx]));    // Initial prefetch of 1st value
+        co_await std::suspend_always{}; // Suspend coroutine
 
-            auto result = ht.ht[hashIdx]; // Read the previously cached value
-
-            while (!((result == nullptr) || (result->key == key))) {
-                PREFETCH(result->next); // Prefetch the next entry in the linked list
-                co_await std::suspend_always{};
-                result = result->next;
-            }
-            if (result != nullptr) results.push_back(result);
+        auto result = ht.ht[hashIdx]; // Read previously cached value
+        while (!((result == nullptr) || (result->key == key))) {
+            PREFETCH(result->next); // Prefetch next entry in linked list
+            co_await std::suspend_always{};
+            result = result->next;
         }
-        co_return;
+        if (result != nullptr) results.push_back(result);
     }
+    co_return;
+}
 \end{lstlisting}
 
 
 % --------- Linear Probing Hashtable ------------
 \subsection{Coroutines in linear probing hashtable}\label{sec:CoroutinesInLinearProbingHashtable}
 
+Linear hashtable uses open addressing with linear probing to resolve collisions.
+When a collision occurs (i.e., when two keys hash to the same index), the hashtable probes the next available slot in a linear manner
+until an empty slot is found or the desired key is located.
+For the same key, chaining is used to store multiple entries in a linked list at the same slot.
+
+Hashtables doubles in size when the load factor exceeds 70\% to maintain efficient lookup performance.
+
+
+
+
+% The coroutine-based lookup function for the linear probing hashtable is shown in \autoref{lst:linear_probing_ht_lookup_coro}.
 
 \begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
 template<const size_t numCoroutines>
-    Task lookup_ht_entry_t(const linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t> &ht,
-                             const auto &lookups, auto &results, const size_t offset) noexcept {
-        auto idx = offset;
-        size_t key;
-        uint64_t hashIdx;
-        uint64_t hash;
-        linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *data = nullptr;
+Task lookup_ht_entry_t(const LinearProbingHashTable<uint64_t, uint64_t> &ht,
+                            const auto &lookups, auto &results, const size_t offset) noexcept {
+    auto idx = offset; size_t key; uint64_t hashIdx; uint64_t hash;
+    LinearProbingHashTable<uint64_t, uint64_t>::EntryData *data = nullptr;
 
-        for (; idx < lookups.size(); idx += numCoroutines) {
-            key = lookups[idx];
-            hash = ht.ComputeHash(key);
-            uint64_t slot = hash & ht.bitmask;
-            uint64_t salt = ht.ExtractSalt(hash);
+    for (; idx < lookups.size(); idx += numCoroutines) {
+        key = lookups[idx];
+        hash = ht.ComputeHash(key);
+        uint64_t slot = hash & ht.bitmask;
+        uint64_t salt = ht.ExtractSalt(hash);
 
-            // Find SLOT
-            linear_probing_ht_duckdb::ht_entry_t entry;
-            while (true) {
-                PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
-                co_await std::suspend_always{}; // Suspend the coroutine until resumed
-                entry = ht.entries[slot];       // Read the previously cached value
-                if (!entry.IsOccupied()) {
-                    // Empty slot found
-                    break;
-                }
-                if (ht.use_salts) {
-                    // Check salt first (bloom filter)
-                    if (entry.GetSalt() == salt) {
-                        // Salt matches, need to check actual key
-                        data = reinterpret_cast<
-                                linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
-                                entry.GetPointer());
-                        if (data && ht.key_equal(data->key, key)) {
-                            entry = ht.entries[slot]; // Found matching key
-                            break;
-                        }
-                    }
-                } else {
-                    // No salt optimization, check key directly
+        // Find SLOT
+        ht_entry_t entry;
+        while (true) {
+            PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
+            co_await std::suspend_always{}; // Suspend the coroutine until resumed
+            entry = ht.entries[slot];       // Read the previously cached value
+            if (!entry.IsOccupied()) {
+                // Empty slot found
+                break;
+            }
+            if (ht.use_salts) {
+                if (entry.GetSalt() == salt) {
                     data = reinterpret_cast<
-                            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
+                            LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
                             entry.GetPointer());
                     if (data && ht.key_equal(data->key, key)) {
                         entry = ht.entries[slot]; // Found matching key
                         break;
                     }
                 }
-
-                // Continue linear probing
-                data = nullptr;
-                linear_probing_ht_duckdb::IncrementAndWrap(slot, ht.bitmask);
+            } else {
+                data = reinterpret_cast<LinearProbingHashTable<
+                        uint64_t, uint64_t>::EntryData *>(entry.GetPointer());
+                if (data && ht.key_equal(data->key, key)) {
+                    entry = ht.entries[slot]; // Found matching key
+                    break;
+                }
             }
-
-            if(data == nullptr) {
-                continue; // Not found
-            }
-            // Found an entry, retrieve all values in the chain
-            linear_probing_ht_duckdb::LinearProbingHashTable<uint64_t, uint64_t>::EntryData *current = data;
-            while (current) {
-                results.push_back(current);
-                PREFETCH(current->next);
-                co_await std::suspend_always();
-                current = current->next;
-            }
+            // Continue linear probing
+            data = nullptr;
+            lIncrementAndWrap(slot, ht.bitmask);
         }
 
-        co_return;
+        if(data == nullptr) { continue; } // Not found
+        // Found an entry, retrieve all values in the chain
+        LinearProbingHashTable<uint64_t, uint64_t>::EntryData *current = data;
+        while (current) {
+            results.push_back(current);
+            PREFETCH(current->next);
+            co_await std::suspend_always();
+            current = current->next;
+        }
     }
+    co_return;
+}
 \end{lstlisting}
-
 
 
 
 % --------- B+ Tree ------------
 \subsection{Coroutines in B+ Tree}\label{sec:CoroutinesInBPlusTree}
+The B+ tree base lookup implementation traverses the tree from root to leaf to locate keys in the data structure.
+The tree is partitioned into internal nodes, which contain routing information, and leaf nodes,
+which store the actual key-value pairs. Each node contains a pointer to its parent node, an array of keys, the current number of keys,
+and either an array of child pointers (for internal nodes) or an array of values (for leaf nodes).
+For a given lookup key, the algorithm starts at the root node and iteratively descends through the tree.
+At each internal node, the keys are searched to determine which child subtree should be examined next.
+The current implementation uses a sequential linear scan where the comparison \texttt{key >= node->keys[i]} identifies the correct position
+in the sorted key array of the internal node and thus the appropriate child pointer to follow.
+This binary tree property ensures that all keys smaller than the branching key are in the left subtree,
+while keys greater than or equal to it are in the right subtree.
+For larger nodes, the additionally implemented binary search could reduce the number of comparisons from $O(n)$ to $O(\log n)$,
+though the linear scan is often sufficient for typical B+ tree node sizes being by default $128$ due to cache efficiency.
+When reaching a leaf node, the algorithm performs a final linear search of the keys to find a match.
+If a matching key is found, the corresponding value is returned else the lookup concludes without a result.
+
+The coroutine-based lookup function for the B+ tree is shown in \autoref{lst:bptree_lookup_coro}.
+Similar to the previous data structures, the scheduler from \autoref{lst:scheduler} is used to manage multiple coroutines.
+Each coroutine processes a subset of the lookup keys based on the offset and total number of coroutines.
+Like the base lookup, each coroutine starts at the root node and traverses down to the leaf node,
+determining the appropriate child pointer at each internal node.
+Before following the child pointer,
+a prefetch instruction is issued for the selected child node followed immediately by a suspension of the coroutine.
+This hitns the compiler to prefetch the node into the cache while other coroutines can execute, effectively hiding the memory latency.
+Once the coroutine is resumed in a round-robin fashion from the scheduler,
+it continues traversing down the tree with prefetching the next node at each level and then suspending until reaching a leaf node.
+The lookup in the leaf node is performed exactly as in the base lookup implementation,
+with the eventual result being written into the results vector passed by reference into the coroutine function.
 
 \begin{lstlisting}[language=C++, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}]
 template<typename Key_t, typename Value_t, const size_t numCoroutines>
-    Task lookup(const bptree::BPTree<Key_t, Value_t> &t, const auto &lookups, auto &results,
-                  const size_t offset) noexcept {
-        auto idx = offset;
-        uint64_t key;
+Task lookup(const BPTree<Key_t, Value_t> &t, const auto &lookups,
+                auto &results, const size_t offset) noexcept {
+    auto idx = offset; uint64_t key;
 
-        for (; idx < lookups.size(); idx += numCoroutines) {
-            key = lookups[idx];
-
-            auto node = t.root;
-            while (!node->isLeaf()) {
-                size_t i = 0;
-                while (i < node->nr_keys && key >= node->keys[i]) {
-                    i++;
-                }
-                PREFETCH(std::move(dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i]));
-                co_await std::suspend_always{};
-                node = dynamic_cast<bptree::PtrNode<Key_t, Value_t> *>(node)->children[i];
-            }
-            bptree::LeafNode<Key_t, Value_t> *leafNode =
-                    std::move(dynamic_cast<bptree::LeafNode<Key_t, Value_t> *>(node));
-
-            // here I could do better search algorithm (binary search) but for now I just do linear search
-            for (size_t i = 0; i < leafNode->nr_keys; i++) {
-                if (leafNode->keys[i] == key) {
-                    results.push_back(std::make_tuple(std::move(key), std::move(leafNode->values[i])));
-                    break; // Stop searching if key is found
-                }
+    for (; idx < lookups.size(); idx += numCoroutines) {
+        key = lookups[idx];
+        auto node = t.root;
+        while (!node->isLeaf()) {
+            size_t i = 0;
+            while (i < node->nr_keys && key >= node->keys[i]) { i++; }
+            PREFETCH(std::move(dynamic_cast<PtrNode<Key_t, Value_t> *>(node)->children[i]));
+            co_await std::suspend_always{};
+            node = dynamic_cast<PtrNode<Key_t, Value_t> *>(node)->children[i];
+        }
+        LeafNode<Key_t, Value_t> *leafNode =
+                std::move(dynamic_cast<LeafNode<Key_t, Value_t> *>(node));
+        for (size_t i = 0; i < leafNode->nr_keys; i++) {
+            if (leafNode->keys[i] == key) {
+                results.push_back(std::make_tuple(std::move(key), std::move(leafNode->values[i])));
+                break; // Stop searching if key is found
             }
         }
-
-        co_return;
     }
+    co_return;
+}
 \end{lstlisting}
 
 
-
 % ========= Benchmarking Setup =============
-\section{Benchmarking Setup}\label{sec:BenchmarkingSetup}
+\section{Benchmarking Methodology}\label{sec:BenchmarkingSetup}
 
 \subsection{Testing Coroutines in Different DataStructures with different compilers across Different Machines}\label{CoroutinesDifferentDataStructuresCompilersMachines}
 %TODO explain which data structures are tested with coroutines, which compilers and which machines (hardware architectures)
 
+For Hashtable one enty is of size 24 bytes (key, value each and next pointer each 8 bytes).
 
+
+Number of lookups is always twice as number of insertions.
+
+Datasizes from 2KB to at least 1GB, in many cases up to 8BG
 
 \subsection{Used Benchmarking Frameworks}
 To evaluate the coroutine implementations, two benchmarking setups are used: Google Benchmark and the perf-cpp framework developed at TU Dortmund.
@@ -361,6 +416,9 @@ and better suited for constructing realistic, repeatable experiments across the 
 
 \subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
 %TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
+
+Nr of lookups is always twice as number of insertions.
+
 
 Different number of corouitnes, using with threading, using with different data sizes,
 prefetch distances, ...
