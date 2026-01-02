@@ -1,0 +1,185 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Integration of Coroutines in DuckDB}\label{chapter:DuckDBIntegration}
+
+% reference to CoroBase
+
+\section{DuckDB and why DuckDB}\label{section:DuckDBOverview}
+% https://dbdb.io/db/duckdb
+DuckDB is an open-source column-oriented Relational embeddable analytical DBMS that focuses on supporting analytical query workloads (OLAP).
+It is similar to SQLite in that it prioritizes simplicity and ease of integration by eliminating external dependencies for compilation and run-time.
+Its columnar-vectorized execution model operates on large bacthes of values simultaneously, reducing the CPU cycles expended per invidivual value.
+This architecture design optimizese DuckDB for analytical workloads, and facilitates efficient data movement in embedded deployments.
+For providing transactional guarantees (ACID properties), DuckDB employs its custom bulk-optimized multi-version concurrency control (MVCC).
+Furthermore, DuckDB supports secondary indexes to accelerate finding a single table entry.
+
+DuckDB implements multiple join strategies, namely hash joins, merge-sort joins, and index-driven joins.
+Its query optimizer leverages dynamic programming for join ordering optimization and greedy heuristics for larger join graphs as fallback.
+Having a set of rewrite rules to simplify the expression tree, it also flattens any subqueries.
+These optimizations produce a refined logical query plan, which the physical optimizer then maps to concrete execution strategies.
+For tables exceeding available memory, the system also provides an external hash-join implementation.
+
+As mentioned in previous paragraphs, DuckDB uses a vectorized execution engine avoiding external dependencies and using templates for code generation.
+Thus, it does not suport Just-in-Time (JIT) compilation of SQL queries, as these would require large compiler libraries such as LLVM, creating additional transitive dependencies and complicating deployment and integration.
+% DuckDB engine supports fixed-length types like integers as native arrays and variable-length values like strings as a native array of pointers into a separate string heap.
+% To represent NULL values, a separate bit vector is used only if any appear in the vector.
+In particular, this vectorized execution model is a pull-based model that is also known as "vector volcano".
+Query execution starts by pulling the first chunk of data from the root node of the physical plan where a chunk is a horizontal subset of a base table, result set, or intermediate query result set.
+This node will recursively pull chunks from child nodes, eventually arriving at a scan operator that produces chunks by reading from the persistent tables.
+The continues until the chunk arriving at the root is empty, indicating that the query is completed.
+
+All thes design choices make DuckDB a perfect candidate for integrating coroutines to hide latencies during pointer-chasing operations such as hashtable lookups.
+In particular, that DuckDB is opensource and implemented in C++ simplifies the integration of coroutines into its hashtable implementation.
+Another opensource database PostgreSQL are implemented in C, making the integration of C++ coroutines into pure C code more challenging.
+For this work, the focus is on the hash-join implementation of DuckDB,
+as it is the most relevant join algorithm for large analytical queries, including TPC-H queries used for the final benchmarking.
+
+\section{Understanding the implemented Hashtable in DuckDB}\label{section:UnderstandingLinearHashtableDuckDB}
+% Citation test~\parencite{latex}.
+DuckDB uses for the hash join a linear probing hashtable implementation with chaining for the same keys.
+The hashtable is implemented in the files \texttt{join\_hashtable.cpp} and \texttt{join\_hashtable.hpp}.
+
+The vectorized execution model of DuckDB processes data in chunks, where each chunk contains a set of rows from a table.
+When building the hashtable, DuckDB processes these chunks and inserts the key-value pairs into the hashtable.
+So, ideally, each chunk is processed by a separate thread, having its own hashtable instance to avoid contention.
+Once all threads have completed building their local hashtables, these are then merged into a single global hashtable.
+
+% The hashtable is also designed to be thread-safe, allowing multiple threads to build and probe the hashtable concurrently.
+
+
+\section{Integration of Coroutines in DuckDB}\label{section:IntegrationCoroutinesDuckDB}
+
+DuckDB integration: linear probing hashtabale where if same key it is chained.
+
+% join_hashtable.cpp and join\_hashtable.hpp (vs aggregate hashtable in aggregate\_hashtable.hpp.cpp and base\_aggregate\_hashtable.cpp/.hpp)
+
+Difficulty in understanding the hashtable and implementing coroutines in huge concept of hastable withotu knowing full picture.
+has to be done in Join phase of the hastable (which is divided in different datachaunks and each datachunk is handled by a thread wher ea thread cna possibly handle more datachunks).
+In this thread coroutines can easily integrated as they are asynchronoulsy called and ...
+
+
+The linearHashtable already presents a similar implementation that the one in DuckDB, thus the coroutine implementation from Section~\ref{sec:CoroutinesInLinearProbingHashtable} was adapted to fit into DuckDB's hashtable structure and logic.
+The scheduler is also the same used.
+
+
+Entry point to add GetRowpointer function specifying number of coroutines to use.
+
+Why does this already work for threading? as each thread handles its own datachunk and thus its own nr of coroutines coroutines.
+
+
+
+
+
+\begin{lstlisting}[language=C, frame=single, caption={duckdb coroutine lookup}, label={lst:duckdb_coroutine_lookup}]
+#define PREFETCH(addr) _mm_prefetch(addr, _MM_HINT_NTA)
+
+struct Silent {
+	struct promise_type;
+	using handle_type = std::coroutine_handle<promise_type>;
+	struct promise_type {
+		std::suspend_never initial_suspend() const noexcept { return {}; }
+		std::suspend_always final_suspend()const noexcept{return {};}
+		void unhandled_exception() const noexcept {	}
+		Silent get_return_object() noexcept { return Silent {handle_type::from_promise(*this)};}
+		void return_void() noexcept { }
+	};
+	handle_type h_;
+	Silent(handle_type h) : h_(h) { }
+	~Silent() { h_.destroy(); }
+};
+
+template <bool USE_SALTS, bool HAS_SEL, const size_t numCoroutines>
+Silent ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTable &ht,
+        ht_entry_t *entries, Vector &pointers_result_v, const SelectionVector *row_sel,
+        idx_t &count, idx_t &keys_to_compare_count, const size_t offset)
+    {
+	auto hashes_dense = FlatVector::GetData<hash_t>(state.hashes_dense_v);
+	auto i = offset;
+
+	for (; i < count; i += numCoroutines) {
+		auto row_hash = hashes_dense[i]; // hashes have been flattened before -> always access dense
+		auto row_ht_offset = row_hash & ht.bitmask;
+
+		if (USE_SALTS) {
+			// increment the ht_offset of the entry as long as the next entry is occupied and salt does not match
+			while (true) {
+				PREFETCH(&entries[row_ht_offset]);
+				co_await std::suspend_always {};
+				const ht_entry_t entry = entries[row_ht_offset];
+				const bool occupied = entry.IsOccupied();
+
+				// the entry is empty -> no match possible
+				if (!occupied) { break; }
+
+				const hash_t row_salt = ht_entry_t::ExtractSalt(row_hash);
+				const bool salt_match = entry.GetSalt() == row_salt;
+				if (salt_match) {
+					// we know that the enty is occupied and the salt matches -> compare the keys
+					auto row_index = GetOptionalIndex<HAS_SEL>(row_sel, i);
+					const auto row_ptr_insert_to = FlatVector::GetData<data_ptr_t>(pointers_result_v);
+					const auto ht_offsets_and_salts = FlatVector::GetData<idx_t>(state.ht_offsets_and_salts_v);
+					state.keys_to_compare_sel.set_index(keys_to_compare_count, row_index);
+					row_ptr_insert_to[row_index] = entry.GetPointer();
+					ht_offsets_and_salts[row_index] = row_ht_offset | entry.GetSaltWithNulls();
+					keys_to_compare_count += 1;
+					break;
+				}
+				// full and salt do not match -> continue probing
+				IncrementAndWrap(row_ht_offset, ht.bitmask);
+			}
+		} else {
+			PREFETCH(&entries[row_ht_offset]);
+			co_await std::suspend_always {};
+			const ht_entry_t entry = entries[row_ht_offset];
+			const bool occupied = entry.IsOccupied();
+			if (occupied) {
+				// the entry is occupied -> compare the keys
+				auto row_index = GetOptionalIndex<HAS_SEL>(row_sel, i);
+				const auto row_ptr_insert_to = FlatVector::GetData<data_ptr_t>(pointers_result_v);
+				const auto ht_offsets_and_salts = FlatVector::GetData<idx_t>(state.ht_offsets_and_salts_v);
+				state.keys_to_compare_sel.set_index(keys_to_compare_count, row_index);
+				row_ptr_insert_to[row_index] = entry.GetPointer();
+				ht_offsets_and_salts[row_index] = row_ht_offset | entry.GetSaltWithNulls();
+				keys_to_compare_count += 1;
+			}
+		}
+	}
+	co_return;
+}
+\end{lstlisting}
+% SCHEDULER
+% template <bool USE_SALTS, bool HAS_SEL, size_t numCoroutines>
+% static idx_t CORO_ProbeForPointersInternal(JoinHashTable::ProbeState &state, JoinHashTable &ht, ht_entry_t *entries,
+%                                            Vector &pointers_result_v, const SelectionVector *row_sel, idx_t &count) {
+% 	idx_t keys_to_compare_count = 0;
+% 	std::array<Silent, numCoroutines> coroutines =
+% 	    ([&state, &ht, &entries, &pointers_result_v, &row_sel, &count, &
+% 		  keys_to_compare_count ]<size_t... Is>(std::index_sequence<Is...>) {
+% 		    return std::array {ProbeForPointersInternalCoro<USE_SALTS, HAS_SEL, numCoroutines>(
+% 		        state, ht, entries, pointers_result_v, row_sel, count, keys_to_compare_count, Is)...};
+% 	    })(std::make_index_sequence<numCoroutines> {});
+% 	while (true) {
+% 		size_t activeCoroutines = 0;
+% 		for (auto &c : coroutines) {
+% 			if (!c.h_.done()) {
+% 				activeCoroutines++;
+% 				c.h_.resume();}}
+% 		if (activeCoroutines == 0) { break; }
+% 	}
+% 	return keys_to_compare_count;
+% }
+
+
+
+
+\section{Benchmarking}\label{section:DuckDBBenchmarking}
+which benchmarking used, integrated benchmarkign framework of duckdb and only tpch queries
+
+
+compiler flag, \#if macro in code used to switch between normal and coroutine hashtable implementation.
+
+% for duckdb integration duckdb's itnegrated benchmarking framework is used,
+% should i mention this here if i put the duckdb integration in the data structures chapter? maybe, but probably better to have dedicated duckdb chapter
+
+

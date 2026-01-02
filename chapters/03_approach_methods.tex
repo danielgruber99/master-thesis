@@ -10,7 +10,7 @@
 % • Indicating reasons for sample characteristics
 % • Describing the process: Indicating problems or limitations
 
-\chapter{Method to hide cache misses with coroutines}\label{chapter:MethodCoroutinesHidingCacheMisses}
+\chapter{Methodology to hide cache misses with coroutines}\label{chapter:MethodCoroutinesHidingCacheMisses}
 
 This chapter describes the history of different methods that were used to implement coroutines for hiding cache misses in data structures.
 It also explains why coroutines and cache prefetching were chosen as the method to hide cache misses in pointer chasing data structures
@@ -37,47 +37,23 @@ This significantly reduces the implementation complexity compared to AMAC, and a
 As Coroutines are already widely used in asynchronous programming to handle I/O-bound tasks without blocking threads successfully in C++ applications,
 this thesis explores their potential in hiding cache misses in pointer-chasing data structures across machines and compilers.
 
-For the pretch operation itself, the x86 intrinsic \_mm\_prefetch is used to issue prefetch instructions to the CPU.
+For the pretch operation itself, the x86 intrinsic non-temporal prefetchnta operation is used as shown in \autoref{lst:prefetch_macro}.
+Both, Intel and AMD (for later generations, e.g. Zen) of their CPUs do not specify a particular cache taget, however, they both state
+that non-temporally prefetches are prioritized for quicker eviction from the cache hierarchy.
+This reduces cache pollution for data that is not expected to be reused soon, which is exactly the case in pointer-chasing data structures
+where access patterns are irregular and data is not reused frequently.
 \begin{lstlisting}[language=C, frame=single, caption={Prefetch macro}, label={lst:prefetch_macro}]
 #define PREFETCH(addr) _mm_prefetch(addr, _MM_HINT_NTA)
 \end{lstlisting}
 
-
-% why different nr of Coroutines? because of LFB size, which provides best performance
-% TODOOO: explain why using prefetchT0YPE_T0 vs T1 or T2
-% more on why this thesis really focusses on coorutines? and this specific use case of hiding cache misses with the new c++20 coroutines?
-% comparison to amac and bulk prefetching
-
-
-
-% Pointer chasing data structures, such as hash tables with chaining or linear probing, and tree-based structures like B-trees or binary search trees,
-% often suffer from cache misses due to their non-contiguous memory access patterns.
-% When traversing these data structures, the CPU frequently encounters cache misses, leading to significant performance degradation as it waits for data to be fetched from main memory.
-% To mitigate this issue, software prefetching is employed to proactively load data into the CPU cache before it is actually needed.
-% By issuing prefetch instructions ahead of time, the CPU can overlap memory access latency with computation,
-% thereby reducing the time spent waiting for data to arrive.
-% Coroutines provide a powerful mechanism to implement this prefetching strategy effectively.
-
-% With the recent standardization in C++20 [19], coroutines greatly ease the implementation of software prefetching. Coroutines [38] are functions that can suspend voluntarily and be resumed later.
-% Functions that involve pointer chasing can be written as coroutines which are executed (interleaved) in batches.
-% Before dereferencing a pointer in coroutine 𝑡1, the thread issues a prefetch followed by a suspend to pause 𝑡1 and switches to another coroutine 𝑡2,
-% overlapping data fetching in 𝑡1 and computation in 𝑡2. Compared to earlier approaches [5, 26], coroutines only require
-% prefetch/suspend be inserted into sequential code, greatly simplifying implementation while delivering high performance, as the switching overhead can be cheaper than a last-level cache miss [21].
-% However, adopting software prefetching remains challenging. First, existing approaches typically use intra-transaction batching which mandates multi-key interfaces that can break backward compatibility.
-% For example, in Figure 1(b) an application1 uses multi_get to retrieve a batch of records at once in a transaction. Cache misses caused by probing k1 (k2) in a tree are hidden behind the computation part of probing k2 (k1). While intratransaction batching is a natural fit for some operators (e.g., INpredicate queries [44, 45]), it is not always directly applicable.
-% Changing the application is not always feasible and may not achieve the desired improvement as depending requests need to be issued in
-% The “application” may be another database system component or an end-user application that uses the record access interfaces provided by the database engine.
-% separate batches, limiting interleaving opportunities. Short (or even single-record) transactions also cannot benefit much due to the lack of interleaving opportunity. It would be desirable to allow batching operations across transactions, i.e., inter-transaction batching.
-% Second, prior work provided only piece-wise solutions, focusing on optimizing individual database operations (e.g., index traversal [21] and hash join [5, 44]). Despite the significant improvement (e.g., up to 3× faster for tree probing [21]), it was not clear how much
-% overall improvement one can expect when these techniques are applied in a full database engine that involves various components.
-% Overall, these issues lead to two key questions:
-% • How should a database engine adopt coroutine-based software prefetching, preferably without requiring application changes?
-% • How much end-to-end benefit can software prefetching bring to a database engine under realistic workloads?
+To optimally utilize coroutines with software prefetching, multiple coroutines are needed to interleave their execution as independent instructions have to be scheduled after the prefetch to hide cache misses.
+When one coroutine issues a prefetch and suspends itself, other coroutines can run and issue their own prefetches,
+thus keeping the CPU busy while waiting for data to be fetched into the cache.
+However, the exact number of coroutines needed to effectively hide cache misses depends on various factors,
+including the hardware components like Cache sizes, memory latency, line fill buffer, and the specific data structure and the size of the data entries being accessed.
 
 
-% \subsection{Different Methods using Coroutines}\label{subsec:DifferentMethodsUsingCoroutines}
 \subsection{Different coroutine approaches and their trade-offs}\label{subsec:}
-% Citation test~\parencite{latex}.
 
 During the development of coroutine-based data structure lookups, the method of implementing coroutines evolved through several iterations.
 The following paragraphs describe the different approaches taken, their trade-offs, and the reasoning behind the final chosen method.
@@ -111,19 +87,6 @@ The coroutine function then writes the found value into the provided pointer/ref
 If the lookup is not yet finished, the coroutine simply suspends without modifying the pointer/reference.
 
 This final approach is from this point on used for all coroutine implementations in different data structures throughout this thesis.
-
-% Verlauf von meiner Coroutines usage:
-% erst für jeden part eine coroutine erstellt und wiedre gelöscht -> ineffizient, weil erstellen von coroutinen viel Zeit und stack storage braucht.
-% Dann mit N (e.g. =5,10,...) wiederverwendbaren Coroutinen, die erst zerstört werden, wenn alles durch, und imt co_yield und co_await zu suchenden Key gegeben
-% und coroutine yielded (nicht mehr returned) Value zurück, wenn gefunden! (Problem: Unterscheidung zwischen noch nicht gefunden in HT, weil noch weiter in chaining durchtraversieren oder in linear
-% weiter durchspringen muss, vs schon gefunden vs. nicht in Hashtable da (also nicht auffindbar, da Key nicht existiert)).
-% Handhabarkeit schwierig, da wenn nicht gefunden, dann nullpointer zurück, wenn gefunden dann obviously den Value, aber was wenn "noch" nicht gefunden, da in der CHain/Linear HT
-% noch weiter traversiert werden muss (aber ich das mit prefetches ebenfalls optimieren will und da dann nicht synchron langsam vorgehen will) ->
-% unterschied zwischen nullpointe,r optional value/definierter Value der dafür steht dass noch nicht gefunden UND Value (gefunden).
-
-% Finaler Versuch, mit wiederverwendbaren Coroutinen und niht mehr co_yield aber mit pointer, wo dann bei Erfolg in Pointer zurückgeschrieben wird.
-% -> Vorteil von wiederverwendbaren Coroutinen und einfacher handhabbar mit co_await auch wenn nicht gefunden oder "noch" nicht.
-
 
 \subsection{Scheduler for multiple coroutines}\label{subsec:SchedulerForCoroutines}
 As in previous section \ref{subsec:DifferentMethodsUsingCoroutines}, the final approach uses a fixed number of coroutines that are created once at the beginning of the lookup process and re-used for multiple lookups.
@@ -191,7 +154,7 @@ The linked list in the bucket is then traversed to find the entry with the match
 The size of the hashtable is chosen to be a power of two to allow efficient computation of the hash index using a bitwise AND operation with a mask
 and is the next power of two of the handed-over size during construction.
 So for all hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
-The hash function used is the MurmurHash3 algorithm:% \parencite{murmurhash3}.
+The hash function used is the MurmurHash3 algorithm.% \parencite{murmurhash3}.
 
 The coroutine-based lookup function for the chaining hashtable is shown in \autoref{lst:coroutine_ht_lookup}.
 For schedulign multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
@@ -231,6 +194,10 @@ Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &resu
 }
 \end{lstlisting}
 
+Note, that the base lookup function as well as a single coroutine return a pointer to the found entry in the hashtable.
+Thus, the result vector passed into the coroutine function and the overall result of the base looup are a vector of pointers to hashtable entries.
+% These still need to be dereferenced to access the actual key-value pairs stored in the hashtable,
+% but for subsequent applications this will be efficient as the hardware prefetcher can
 
 % --------- Linear Probing Hashtable ------------
 \subsection{Coroutines in linear probing hashtable}\label{sec:CoroutinesInLinearProbingHashtable}
@@ -239,13 +206,22 @@ Linear hashtable uses open addressing with linear probing to resolve collisions.
 When a collision occurs (i.e., when two keys hash to the same index), the hashtable probes the next available slot in a linear manner
 until an empty slot is found or the desired key is located.
 For the same key, chaining is used to store multiple entries in a linked list at the same slot.
+This particular implementation of a linear probing hashtable grows dynamically by doubling in size when the load factor exceeds 70\%.
 
-Hashtables doubles in size when the load factor exceeds 70\% to maintain efficient lookup performance.
-
-
-
-
-% The coroutine-based lookup function for the linear probing hashtable is shown in \autoref{lst:linear_probing_ht_lookup_coro}.
+The coroutine-based lookup function for the linear probing hashtable is shown in \autoref{lst:coroutine_ht_lookup}.
+For schedulign multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
+Each coroutine processes a fixed-size subset of the lookup keys, determined by the offset parameter and the total number of coroutines,
+meaning that each coroutine from start has its own index to start processing keys from and does not consider if other coroutines
+are already finished with their subset of keys that they continue to process other keys from other coroutines.
+The Coroutines are eagerly started and for each key, the hash index is computed, and a prefetch instruction is issued for the
+corresponding bucket to bring the first entry into the cache. Directly after the prefetch, the coroutine suspends itself using co\_await.
+When the coroutine is resumed, it reads the prefetched entry and if the slot is occupied, it checks if the key matches the searching key.
+If it does not match, the coroutine continues linear probing by incrementing the slot index and prefetching the next slot, again by prefetching and suspending itself.
+This continues until either a matching key is found or an empty slot is encountered, in which case the lookup concludes without a result.
+However, if a matching key for the to searching key is found, the corresponding entry is added to the results vector,
+and the chain of entries at that slot is traversed to retrieve all entries with the same key,
+by prefetching each next entry in the chain and suspending the coroutine after each prefetch.
+The found entries are added to the results vector, a pointer/reference passed into the coroutine function from the calling scheduler.
 
 \begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
 template<const size_t numCoroutines>
@@ -266,31 +242,24 @@ Task lookup_ht_entry_t(const LinearProbingHashTable<uint64_t, uint64_t> &ht,
             PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
             co_await std::suspend_always{}; // Suspend the coroutine until resumed
             entry = ht.entries[slot];       // Read the previously cached value
-            if (!entry.IsOccupied()) {
-                // Empty slot found
-                break;
-            }
+            if (!entry.IsOccupied()) { break; } // Empty slot found
             if (ht.use_salts) {
                 if (entry.GetSalt() == salt) {
                     data = reinterpret_cast<
                             LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
                             entry.GetPointer());
                     if (data && ht.key_equal(data->key, key)) {
-                        entry = ht.entries[slot]; // Found matching key
-                        break;
-                    }
+                        entry = ht.entries[slot]; break; } // Found matching key
                 }
             } else {
                 data = reinterpret_cast<LinearProbingHashTable<
                         uint64_t, uint64_t>::EntryData *>(entry.GetPointer());
                 if (data && ht.key_equal(data->key, key)) {
-                    entry = ht.entries[slot]; // Found matching key
-                    break;
-                }
+                    entry = ht.entries[slot]; break; }  // Found matching key
             }
             // Continue linear probing
             data = nullptr;
-            lIncrementAndWrap(slot, ht.bitmask);
+            IncrementAndWrap(slot, ht.bitmask);
         }
 
         if(data == nullptr) { continue; } // Not found
@@ -307,7 +276,8 @@ Task lookup_ht_entry_t(const LinearProbingHashTable<uint64_t, uint64_t> &ht,
 }
 \end{lstlisting}
 
-
+Note, that the normal lookup as well as the coroutine lookup function return a pointer to the found entry in the hashtable,
+ending up in a vector of pointers to hashtable entries as the overall result.
 
 % --------- B+ Tree ------------
 \subsection{Coroutines in B+ Tree}\label{sec:CoroutinesInBPlusTree}
@@ -368,19 +338,72 @@ Task lookup(const BPTree<Key_t, Value_t> &t, const auto &lookups,
 }
 \end{lstlisting}
 
+Note, that in this B+ tree implementation, values and keys are stored in separate arrays only returning the value for a given key.
+This makes it necessary for the results vector to store both the key and value as a tuple,
+so that the caller can associate the found value with its corresponding key as coroutines potentially return results out of order if one coroutine is faster than another.
 
 % ========= Benchmarking Setup =============
 \section{Benchmarking Methodology}\label{sec:BenchmarkingSetup}
 
-\subsection{Testing Coroutines in Different DataStructures with different compilers across Different Machines}\label{CoroutinesDifferentDataStructuresCompilersMachines}
-%TODO explain which data structures are tested with coroutines, which compilers and which machines (hardware architectures)
+\subsection{Benchmark Configuration and Setup}\label{CoroutinesDifferentDataStructuresCompilersMachines}
+To evaluate the performance of coroutine-based data structure lookups across different data structures, machines, and compilers,
+a comprehensive benchmarking setup is established.
+Each data structure (chaining hash table, linear probing hash table, B+ tree) is implemented with coroutine-based lookups as described in \autoref{sec:UsingCoroutinesInDifferentDataStructures}
+and a base looup implementation without coroutines and without prefetching for comparison.
 
-For Hashtable one enty is of size 24 bytes (key, value each and next pointer each 8 bytes).
+To have a fair comparison across the data structures, the amount of data inserted is measured in data size rather than number of entries, as different data structures have different entry sizes.
+The entries inserted into the data structures as well as the lookups are independently randomly generated keys and values, where it is to emphasize that
+the number of lookups is always twice as number of insertions to simulate a realistic workload with more lookups than insertions.
+The amount of data inserted into the data structures varies from 2KB to at least 1GB, in many cases up to 8GB, to evaluate performance across different data sizes.
+This range of data sizes allows observing how coroutine performance scales with increasing data sizes, especially as data sizes exceed various cache levels (L1, L2, L3).
+
+\paragraph{Overview of different data structures}
+To verify the effectiveness of coroutines in hiding cache misses across different pointer-chasing data structures,
+three widely used data structures are selected for evaluation: chaining hash tables, linear probing hash tables, and B+ trees.
+
+For the hash table one enty is of size 24 bytes (key, value each and next pointer each 8 bytes).
+
+\paragraph{Overview of different machines}
+Furthermore to evaluate the performance of coroutine implementations across different hardware architectures,
+multiple machines with varying CPU architectures are used.
+This includes following four machines:
+\begin{itemize}
+    \item Skylake:
+    \item Skylake X:
+    \item AMD Threadripper:
+    \item Xeon (Sapphire Rapids):
+\end{itemize}
+
+More details about the machines and their specifications are provided in TODO. % \autoref{tab:machines}. im Anhang?
+
+\paragraph{Overview of different compilers}
+Additionally to benchmarking on different machines, multiple compilers are used to evaluate the performance of coroutine implementations.
+This includes following compilers:
+\begin{itemize}
+    \item GCC 14
+    \item Clang 18.0
+    \item Clang 20.0
+\end{itemize}
+Goal is to see how different compilers optimize the coroutine state machines and the generated prefetch instructions,
+as well as how well the different compilers support C++20 coroutines in general.
+% The reason for choosing these specific compiler versions is that they are the latest stable releases at the time of writing this thesis,
+% and they all have mature support for C++20 features, including coroutines.
+
+% CLang 18 and 20 used, weil Heap elision with coroutines stuff
 
 
-Number of lookups is always twice as number of insertions.
+\paragraph{Different number of Threads}
+To further explore the performance of coroutine-based lookups under varying levels of concurrency,
+the benchmarks are executed with different numbers of threads, ranging from single-threaded execution to multiple threads, e.g. 2, 4, 8, 16 threads.
 
-Datasizes from 2KB to at least 1GB, in many cases up to 8BG
+
+
+\subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
+%TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
+% maybe consolidate in one subsection with the previous one
+
+
+
 
 \subsection{Used Benchmarking Frameworks}
 To evaluate the coroutine implementations, two benchmarking setups are used: Google Benchmark and the perf-cpp framework developed at TU Dortmund.
@@ -399,28 +422,5 @@ construction and re-use across different benchmarks, and parameter sweeps.
 The framework allows building reusable benchmark fixtures that set up hash tables or trees once and then run multiple lookup benchmarks against the same data structures.
 Additionally, perf-cpp supports detailed performance measurements using hardware counters, enabling fine-grained analysis of cache misses, branch mispredictions,
 and other low-level metrics relevant to evaluating coroutine performance.
-
-This flexibility was essential to compare different coroutine designs
-(e.g., varying the number of reused coroutine instances or altering prefetch strategies) under consistent data
-and workload characteristics without duplicating setup code.
-
-In conclusion, Google Benchmark serves as a pointwise verifier, where all the benchmark scenarios are mirrored but with less flexibility
-in terms of choosing datasize, reusing datastructures for several different lookup functions and setting several parameters at once.
-However, all reported measurements and conclusions in this thesis rely on perf-cpp runs, as that framework proved more expressive
-and better suited for constructing realistic, repeatable experiments across the evaluated data structures.
-
-
-% for duckdb integration duckdb's itnegrated benchmarking framework is used,
-% should i mention this here if i put the duckdb integration in the data structures chapter? maybe, but probably better to have dedicated duckdb chapter
-
-
-\subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
-%TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
-
-Nr of lookups is always twice as number of insertions.
-
-
-Different number of corouitnes, using with threading, using with different data sizes,
-prefetch distances, ...
-
-
+In conclusion, all reported measurements and conclusions in this thesis rely on perf-cpp runs,
+and Google Benchmark is only used for prototyping and sanity-checking individual scenarios.

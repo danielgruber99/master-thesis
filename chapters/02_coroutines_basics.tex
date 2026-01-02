@@ -461,8 +461,8 @@ as the first are inherent to the initial data access and the second can be mitig
 
 \subsection{Cause of Cache Misses in Data Structures}\label{subsec:CauseOfCacheMissesInDataStructures}
 
-Modern database engines utilize various in-memory data structures that are directly addressed by virtual memory pointers.
-Memory blocks used by these data structures are typically allocated from the heap and chained together using pointers.
+Pointer chasing data structures, like chaining or linear probing hash tables, and tree-based structures, e.g. B+-trees,
+typically suffer from cache misses as their access patterns are irregular and non-contiguous.
 For example, the nodes of an in-memory B+-tree are dynamically allocated and deallocated as the tree grows and shrinks.
 To traverse such a tree from its root node to the target leaf node,
 the accessing thread must dereference multiple pointers sequentially from the root to the leaf, forming a random access pattern.
@@ -470,13 +470,13 @@ Another example is a chaining Hashtable, where each bucket contains a linked lis
 To look up a key in such a hashtable, the accessing thread first computes the hash index, accesses the corresponding bucket,
 and then traverses the linked list by following pointers until it finds the desired key or reaches the end of the list.
 
-This pointer chasing behavior poses a significant challenge for hardware prefetchers.
-Such access patterns are very difficult, if not impossible, for hardware prefetchers to predict accurately,
-leading to a high likelihood of last-level cache misses upon each pointer dereference.
+Thus, when traversing these data structures, the CPU frequently encounters cache misses, leading to significant performance degradation as it waits for data to be fetched from main memory.
+To mitigate this issue, software prefetching is employed to proactively load data into the CPU cache before it is actually needed.
+The hardware prefetcher in modern CPUs is often ineffective for these pointer-chasing patterns due to their irregular access nature, providing no predictable stride or pattern for the prefetcher to exploit.
 But this pointer chasing is also for software prefetching challenging, as the address of the next memory access is not known until the current access is completed
 and the node or linked list entry is fetched and processed to extract the next pointer.
+However, by overlapping multiple independent operations, for example with AMAC, GP or Coroutines, software prefetching can be effectively utilized to hide the latency of these cache misses.
 
-% TODO: make my example also with hashtable and pictures, rather in next chapter?
 
 \subsection{Techniques to counter Cache Misses}\label{subsec:TechniquesCounterCacheMisses}
 
@@ -527,19 +527,14 @@ and the compiler handles the efficient state management and context switching.
 
 All these techniques rely on using software prefetching to initiate memory transfers ahead of time which is explained in the next subsection.
 
-% Group prefetching and software pipelined prefetching [5] overlap multiple hash table
-% lookups to accelerate hash joins. After a prefetch is issued, the
-% control flow switches to execute the computation stage of another
-% operation. Asynchronous memory access chaining (AMAC) [26] is
-% a general approach that allows one to transform a heterogeneous
-% set of operations into state machines to facilitate switching between operations upon cache misses. A notable drawback of these
-% approaches is they require developers hand-craft algorithms. The
-% resulted code is typically not intuitive to understand and hard to
-% maintain. This limits their application to simple or individual data
-% structures and operations (e.g., tree traversal). or coroutines.
+% Group prefetching and software pipelined prefetching [5] overlap multiple hash table lookups to accelerate hash joins.
+% After a prefetch is issued, the control flow switches to execute the computation stage of another operation.
+% Asynchronous memory access chaining (AMAC) [26] is a general approach that allows one to transform a heterogeneous
+% set of operations into state machines to facilitate switching between operations upon cache misses.
+% A notable drawback of theseapproaches is they require developers hand-craft algorithms. The resulted code is typically not intuitive to understand and hard to maintain.
+% This limits their application to simple or individual data structures and operations (e.g., tree traversal). or coroutines.
 
-% Consider traversing a tree-like data structure: the immediate succession of identifying
-% and accessing a node leaves negligible time for the hardware to load the data, even with prefetch hints.
+% Consider traversing a tree-like data structure: the immediate succession of identifying and accessing a node leaves negligible time for the hardware to load the data, even with prefetch hints.
 % To create a sufficient temporal gap between pinpointing the next node and accessing it, various methods have been explored.
 % The key approach is to break operations into stages and use pipelining, overlaying the prefetch of one item with the compute of others, for example, by processing operations in groups.
 % A more general approach utilizes asynchronous control flow abstractions, such as coroutines and fine-grained tasks.
