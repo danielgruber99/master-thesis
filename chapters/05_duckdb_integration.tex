@@ -74,23 +74,23 @@ Why does this already work for threading? as each thread handles its own datachu
 \begin{lstlisting}[language=C, frame=single, caption={duckdb coroutine lookup}, label={lst:duckdb_coroutine_lookup}]
 #define PREFETCH(addr) _mm_prefetch(addr, _MM_HINT_NTA)
 
-struct Silent {
+struct Task {
 	struct promise_type;
 	using handle_type = std::coroutine_handle<promise_type>;
 	struct promise_type {
 		std::suspend_never initial_suspend() const noexcept { return {}; }
 		std::suspend_always final_suspend()const noexcept{return {};}
 		void unhandled_exception() const noexcept {	}
-		Silent get_return_object() noexcept { return Silent {handle_type::from_promise(*this)};}
+		Task get_return_object() noexcept { return Task {handle_type::from_promise(*this)};}
 		void return_void() noexcept { }
 	};
 	handle_type h_;
-	Silent(handle_type h) : h_(h) { }
-	~Silent() { h_.destroy(); }
+	Task(handle_type h) : h_(h) { }
+	~Task() { h_.destroy(); }
 };
 
 template <bool USE_SALTS, bool HAS_SEL, const size_t numCoroutines>
-Silent ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTable &ht,
+Task ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTable &ht,
         ht_entry_t *entries, Vector &pointers_result_v, const SelectionVector *row_sel,
         idx_t &count, idx_t &keys_to_compare_count, const size_t offset)
     {
@@ -109,8 +109,7 @@ Silent ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTa
 				const ht_entry_t entry = entries[row_ht_offset];
 				const bool occupied = entry.IsOccupied();
 
-				// the entry is empty -> no match possible
-				if (!occupied) { break; }
+				if (!occupied) { break; }  // entry empty -> stop probing
 
 				const hash_t row_salt = ht_entry_t::ExtractSalt(row_hash);
 				const bool salt_match = entry.GetSalt() == row_salt;
@@ -153,7 +152,7 @@ Silent ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTa
 % static idx_t CORO_ProbeForPointersInternal(JoinHashTable::ProbeState &state, JoinHashTable &ht, ht_entry_t *entries,
 %                                            Vector &pointers_result_v, const SelectionVector *row_sel, idx_t &count) {
 % 	idx_t keys_to_compare_count = 0;
-% 	std::array<Silent, numCoroutines> coroutines =
+% 	std::array<Task, numCoroutines> coroutines =
 % 	    ([&state, &ht, &entries, &pointers_result_v, &row_sel, &count, &
 % 		  keys_to_compare_count ]<size_t... Is>(std::index_sequence<Is...>) {
 % 		    return std::array {ProbeForPointersInternalCoro<USE_SALTS, HAS_SEL, numCoroutines>(
@@ -179,7 +178,10 @@ which benchmarking used, integrated benchmarkign framework of duckdb and only tp
 
 compiler flag, \#if macro in code used to switch between normal and coroutine hashtable implementation.
 
-% for duckdb integration duckdb's itnegrated benchmarking framework is used,
-% should i mention this here if i put the duckdb integration in the data structures chapter? maybe, but probably better to have dedicated duckdb chapter
+
+
+
+\section{Results}\label{section:duckdbresults}
+
 
 

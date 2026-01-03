@@ -7,3 +7,297 @@ additional material, e.g., code listings, data sheets, etc.
 
 
 
+\section{Hashtable results}
+
+% per datasize, per hardware architecture, per compiler, per number of coroutines, per number of threads
+\subsection{per datasize across compilers and architectures}
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Skylake GNU14 Avg[ms]}
+    \label{fig:HashTableSkylakeGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Skylake Clang20 Avg[ms]}
+    \label{fig:HashTableSkylakeClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Skylake Clang18 Avg[ms]}
+    \label{fig:HashTableSkylakeClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Amd GNU14 Avg[ms]}
+    \label{fig:HashTableAmdGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Amd Clang20 Avg[ms]}
+    \label{fig:HashTableAmdClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable Amd Clang18 Avg[ms]}
+    \label{fig:HashTableAmdClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable xeon GNU14 Avg[ms]}
+    \label{fig:HashTablexeonGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable xeon Clang20 Avg[ms]}
+    \label{fig:HashTablexeonClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable xeon Clang18 Avg[ms]}
+    \label{fig:HashTablexeonClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable SkylakeX GNU14 Avg[ms]}
+    \label{fig:HashTableSkylakeXGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable SkylakeX Clang20 Avg[ms]}
+    \label{fig:HashTableSkylakeXClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small HashTable SkylakeX Clang18 Avg[ms]}
+    \label{fig:HashTableSkylakeXClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+% ====== B+ Tree Results =======
+\section{B+ Tree results}
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Skylake GNU14 Avg[ms]}
+    \label{fig:bptreeSkylakeGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Skylake Clang20 Avg[ms]}
+    \label{fig:bptreeSkylakeClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Skylake Clang18 Avg[ms]}
+    \label{fig:bptreeSkylakeClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Amd GNU14 Avg[ms]}
+    \label{fig:bptreeAmdGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Amd Clang20 Avg[ms]}
+    \label{fig:bptreeAmdClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree Amd Clang18 Avg[ms]}
+    \label{fig:bptreeAmdClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree xeon GNU14 Avg[ms]}
+    \label{fig:bptreexeonGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree xeon Clang20 Avg[ms]}
+    \label{fig:bptreexeonClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree xeon Clang18 Avg[ms]}
+    \label{fig:bptreexeonClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree SkylakeX GNU14 Avg[ms]}
+    \label{fig:bptreeSkylakeXGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree SkylakeX Clang20 Avg[ms]}
+    \label{fig:bptreeSkylakeXClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small bptree SkylakeX Clang18 Avg[ms]}
+    \label{fig:bptreeSkylakeXClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+
+% ======= Linear Probing Hashtable results =======
+\section{Linear Probing Hashtable results}
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Skylake GNU14 Avg[ms]}
+    \label{fig:linearHashtableSkylakeGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Skylake Clang20 Avg[ms]}
+    \label{fig:linearHashtableSkylakeClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Skylake Clang18 Avg[ms]}
+    \label{fig:linearHashtableSkylakeClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Amd GNU14 Avg[ms]}
+    \label{fig:linearHashtableAmdGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Amd Clang20 Avg[ms]}
+    \label{fig:linearHashtableAmdClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable Amd Clang18 Avg[ms]}
+    \label{fig:linearHashtableAmdClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable xeon GNU14 Avg[ms]}
+    \label{fig:linearHashtablexeonGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable xeon Clang20 Avg[ms]}
+    \label{fig:linearHashtablexeonClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable xeon Clang18 Avg[ms]}
+    \label{fig:linearHashtablexeonClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+
+\begin{figure}[h]
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable SkylakeX GNU14 Avg[ms]}
+    \label{fig:linearHashtableSkylakeXGNU14AvgTime}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable SkylakeX Clang20 Avg[ms]}
+    \label{fig:linearHashtableSkylakeXClang20AvgTime}
+  \end{minipage}
+    \hfill
+  \begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \caption{\small linearHashtable SkylakeX Clang18 Avg[ms]}
+    \label{fig:linearHashtableSkylakeXClang18AvgTime}
+  \end{minipage}
+\end{figure}
+
+

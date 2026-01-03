@@ -1,8 +1,6 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-%% TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-
 % • Describing different methods: my method was kind of vorgegeben, nur warum nicht amac und gp
 % • Indicating a specific method:
 % • Giving reasons why a particular method was adopted
@@ -22,7 +20,6 @@ and which method is superior to others in terms of performance and implementatio
 % Specifically, after a task issues memory prefetching, it will not continue because the prefetched data is not ready in time. Instead, the
 % execution switches to other tasks, and then goes back to process the
 % prefetched data after a while.
-
 
 \section{Why using Coroutines combined with Software Prefetching?}
 This thesis focuses on using coroutines and cache prefetching to hide cache misses in pointer chasing data structures.
@@ -98,7 +95,7 @@ template<const size_t numCoroutines>
 std::vector<typename resultType>
 lookupEntries(datastructure ds, lookupsVector lookups) noexcept {
     resultType result;
-    std::array<Silent, numCoroutines> coroutines =
+    std::array<Task, numCoroutines> coroutines =
         ([&ht, &lookups, &result]<size_t... Is>(std::index_sequence<Is...>) {
             return std::array{lookup<numCoroutines>(ht, lookups, result, Is)...};
         })(std::make_index_sequence<numCoroutines>{});
@@ -136,6 +133,34 @@ while any(coroutine_promises, x: not x.done()):
 \end{lstlisting}
 
 
+\subsection{The Coroutine Wrapper class}\subsection{subsec:CoroutineWrapper}
+The implemented Coroutine Wrapper, shown in \autoref{lst:scheduler}, is a simple struct that encapsulates the coroutine handle and manages its lifecycle.
+As explained in \autoref{sec:CppCoroutines}, the coroutine wrapper has a nested promise\_type struct that defines the behavior of the coroutine,
+including the initial and final suspension points, exception handling, and return object creation.
+In this case, the coroutine is designed to never suspend initially (initial\_suspend returns std::suspend\_never), and thus is eagerly started upon creation.
+The final suspension point (final\_suspend) returns std::suspend\_always, meaning the coroutine will suspend itself when it reaches the end of its execution,
+allowing the scheduler to manage its completion and destruction appropriately.
+Furthermore, the wrapper class has a handle\_type member that holds the coroutine handle,
+which the scheduler uses to resume the coroutine and check its completion status.
+
+\begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}, numbers=left]
+struct Task {
+    struct promise_type;
+    using handle_type = std::coroutine_handle<promise_type>;
+    struct promise_type {
+        std::suspend_never initial_suspend() const noexcept { return {}; }
+        std::suspend_always final_suspend() const noexcept { return {}; }
+        void unhandled_exception() const noexcept {}
+        Task get_return_object() noexcept { return Task{handle_type::from_promise(*this)}; }
+        void return_void() noexcept {}
+    };
+    handle_type h_; // Handle of the coroutine
+    Task(handle_type h) : h_(h) {}
+    ~Task() { h_.destroy(); }
+};
+\end{lstlisting}
+
+
 % ========= Using Coroutines in data structures =============
 \section{Using Coroutines in different data structures}\label{sec:UsingCoroutinesInDifferentDataStructures}
 
@@ -149,15 +174,15 @@ pointing out details and key aspects of the implementation.
 The first datastructure where coroutines are integrated is a chaining hashtable.
 The chaining hashtable consists of an array of buckets,
 where each bucket contains a linked list of entries that hash to the same index.
+The hash function used is the MurmurHash3 algorithm.% \parencite{murmurhash3}.
 When performing a lookup, the hash index is computed from the key, and the corresponding bucket is accessed.
 The linked list in the bucket is then traversed to find the entry with the matching key.
 The size of the hashtable is chosen to be a power of two to allow efficient computation of the hash index using a bitwise AND operation with a mask
 and is the next power of two of the handed-over size during construction.
 So for all hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
-The hash function used is the MurmurHash3 algorithm.% \parencite{murmurhash3}.
 
 The coroutine-based lookup function for the chaining hashtable is shown in \autoref{lst:coroutine_ht_lookup}.
-For schedulign multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
+For scheduling multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
 Each coroutine processes a fixed-size subset of the lookup keys, determined by the offset parameter and the total number of coroutines,
 meaning that each coroutine from start has its own index to start processing keys from and does not consider if other coroutines
 are already finished with their subset of keys that they continue to process other keys from other coroutines.
@@ -349,7 +374,11 @@ so that the caller can associate the found value with its corresponding key as c
 To evaluate the performance of coroutine-based data structure lookups across different data structures, machines, and compilers,
 a comprehensive benchmarking setup is established.
 Each data structure (chaining hash table, linear probing hash table, B+ tree) is implemented with coroutine-based lookups as described in \autoref{sec:UsingCoroutinesInDifferentDataStructures}
-and a base looup implementation without coroutines and without prefetching for comparison.
+and a base looup implementation without coroutines and without prefetching for comparison with the reference.
+The primary metric used for evaluations is time taken for lookups, inluding min, max and average time of the three repetitions.
+Only for scenarios where the number of threads is greater than one, only one repetition is executed.
+But not only time, also additional metrics such as cycles, L1-dcache-loads, L1-dcache-load-misses, dTLB-loads, dTLB-load-misses, page-faults,
+cache-misses, gigahertz, L1-data-miss-ratio, cache-hit-ratio, cache-miss-ratio and dTLB-miss-ratio are recorded.
 
 To have a fair comparison across the data structures, the amount of data inserted is measured in data size rather than number of entries, as different data structures have different entry sizes.
 The entries inserted into the data structures as well as the lookups are independently randomly generated keys and values, where it is to emphasize that
@@ -366,44 +395,37 @@ For the hash table one enty is of size 24 bytes (key, value each and next pointe
 \paragraph{Overview of different machines}
 Furthermore to evaluate the performance of coroutine implementations across different hardware architectures,
 multiple machines with varying CPU architectures are used.
-This includes following four machines:
+This includes following four machines, all based on the x86-64 architecture:
 \begin{itemize}
-    \item Skylake:
-    \item Skylake X:
-    \item AMD Threadripper:
-    \item Xeon (Sapphire Rapids):
+    \item \textbf{Skylake}: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz: 4 Cores, 8 Threads, 32GB main memory, L1d cache: 32KiB (per Core), L2 cache: 256KiB (per Core), L3 cache: 8MiB (shared), NUMA Nodes 1
+    \item \textbf{Skylake\_X}: Intel(R) Core(TM) i9-9900X CPU @ 3.50GHz, 10 Cores, 20 Threads, 64GB main memory, L1d cache: 32KiB (per Core) , L2 cache: 1MiB (per Core), L3 cache: 19.3MiB (shared), NUMA Nodes 1
+    \item \textbf{AMD}: Ryzen Threadripper 1950X : 16 Cores, 64GB main memory, L1d cache: 32KiB (per Core), L2 cache: 512KiB (per Core), L3 cache: 32MiB (shared), NUMA Nodes 2
+    \item \textbf{Xeon (Sapphire Rapids)}: Intel(R) Xeon(R) Gold 6430, 32 Cores, 64 Threads, 256GB main memory, L1d cache: 48KiB (per Core), L2 cache: 2MiB (per Core), L3 cache: 60MiB (shared), NUMA Nodes 1
 \end{itemize}
 
-More details about the machines and their specifications are provided in TODO. % \autoref{tab:machines}. im Anhang?
+% More details about the machines and their specifications are provided in TODO. % \autoref{tab:machines}. im Anhang?
 
 \paragraph{Overview of different compilers}
 Additionally to benchmarking on different machines, multiple compilers are used to evaluate the performance of coroutine implementations.
 This includes following compilers:
 \begin{itemize}
-    \item GCC 14
-    \item Clang 18.0
-    \item Clang 20.0
+    \item GCC/GNU 14
+    \item Clang 18
+    \item Clang 20
 \end{itemize}
 Goal is to see how different compilers optimize the coroutine state machines and the generated prefetch instructions,
 as well as how well the different compilers support C++20 coroutines in general.
 % The reason for choosing these specific compiler versions is that they are the latest stable releases at the time of writing this thesis,
 % and they all have mature support for C++20 features, including coroutines.
-
 % CLang 18 and 20 used, weil Heap elision with coroutines stuff
-
 
 \paragraph{Different number of Threads}
 To further explore the performance of coroutine-based lookups under varying levels of concurrency,
-the benchmarks are executed with different numbers of threads, ranging from single-threaded execution to multiple threads, e.g. 2, 4, 8, 16 threads.
+the benchmarks are executed with different numbers of threads, ranging from the primarily evaluated single-threaded execution to multiple threads, e.g. 2, 4, 8, 16 threads.
 
-
-
-\subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
-%TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
-% maybe consolidate in one subsection with the previous one
-
-
-
+% \subsection{Benchmark configuration and recorded metrics}\label{subsec:BenchmarkConfigAndRecordedMetrics}
+% %TODO explain which metrics are recorded and how the benchmarks are configured (e.g., number of runs, warm-up iterations, etc.)
+% % maybe consolidate in one subsection with the previous one
 
 \subsection{Used Benchmarking Frameworks}
 To evaluate the coroutine implementations, two benchmarking setups are used: Google Benchmark and the perf-cpp framework developed at TU Dortmund.
@@ -422,5 +444,6 @@ construction and re-use across different benchmarks, and parameter sweeps.
 The framework allows building reusable benchmark fixtures that set up hash tables or trees once and then run multiple lookup benchmarks against the same data structures.
 Additionally, perf-cpp supports detailed performance measurements using hardware counters, enabling fine-grained analysis of cache misses, branch mispredictions,
 and other low-level metrics relevant to evaluating coroutine performance.
+Additionally, perf tooling and pmu-tools/toplev is used to pointwise analyze performance bottlenecks.
 In conclusion, all reported measurements and conclusions in this thesis rely on perf-cpp runs,
 and Google Benchmark is only used for prototyping and sanity-checking individual scenarios.

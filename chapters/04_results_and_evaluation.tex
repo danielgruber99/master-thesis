@@ -32,28 +32,32 @@
 recap to benchmarking methodology in \autoref{sec:BenchmarkingSetup}, number of lookups is always twice the number of inserts.
 Number of insertions is specified in datasize.
 
-
 % ====== Hashtable Results =======
 \section{Hashtable results}
+The implemented chaining hashtable from \autoref{sec:CoroutinesInHashtable} is benchmarked with different datasizes and number of threads across different hardware architectures and compilers.
+First, the results with one thread recorded on the AMD are presented, shown in \autoref{fig:HashTableAmdGNU14AvgTime}, \autoref{fig:HashTableAmdClang20AvgTime}, \autoref{fig:HashTableAmdClang18AvgTime}.
+The pattern of results is similar across the different compilers, generally with increasing performance improvements with larger datasizes.
+In particular, for small datasizes (up to 32MB), the peformance is rather worse witrh coroutines.
+
 
 % per datasize, per hardware architecture, per compiler, per number of coroutines, per number of threads
 \subsection{per datasize across compilers and architectures}
 \begin{figure}[h]
-  \begin{minipage}{0.3\textwidth}
+  \begin{minipage}{0.32\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
     \caption{\small HashTable Skylake GNU14 Avg[ms]}
     \label{fig:HashTableSkylakeGNU14AvgTime}
   \end{minipage}
   \hfill
-  \begin{minipage}{0.3\textwidth}
+  \begin{minipage}{0.32\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
     \caption{\small HashTable Skylake Clang20 Avg[ms]}
     \label{fig:HashTableSkylakeClang20AvgTime}
   \end{minipage}
     \hfill
-  \begin{minipage}{0.3\textwidth}
+  \begin{minipage}{0.32\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
     \caption{\small HashTable Skylake Clang18 Avg[ms]}
