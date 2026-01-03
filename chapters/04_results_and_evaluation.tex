@@ -32,109 +32,78 @@
 recap to benchmarking methodology in \autoref{sec:BenchmarkingSetup}, number of lookups is always twice the number of inserts.
 Number of insertions is specified in datasize.
 
+Unless not specifically mentioned otherwise, all results presented are singlel-threaded
+
 % ====== Hashtable Results =======
 \section{Hashtable results}
-The implemented chaining hashtable from \autoref{sec:CoroutinesInHashtable} is benchmarked with different datasizes and number of threads across different hardware architectures and compilers.
-First, the results with one thread recorded on the AMD are presented, shown in \autoref{fig:HashTableAmdGNU14AvgTime}, \autoref{fig:HashTableAmdClang20AvgTime}, \autoref{fig:HashTableAmdClang18AvgTime}.
-The pattern of results is similar across the different compilers, generally with increasing performance improvements with larger datasizes.
-In particular, for small datasizes (up to 32MB), the peformance is rather worse witrh coroutines.
-
+This section presents the benchmarking results for the coroutine-enhanced chaining hashtable implementation described in \autoref{sec:CoroutinesInHashtable}.
+% The implemented chaining hashtable from \autoref{sec:CoroutinesInHashtable} is benchmarked with different datasizes and number of threads across different hardware architectures and compilers.
+First, the results recorded on the Skylake compiled with GNU14 and run single-threaded are presented, shown in \autoref{fig:HashTableSkylakeGNU14AvgTime}.
+For small datasizes (up to 2MB), the performance is rather worse than the base lookup with coroutines.
+For medium datasizes (4MB to 128MB including), the performance improvement becomes more pronounced, reaching up to approximately 15-20\% reduction in average lookup time.
+However, for larger datasizes (from 256MB up to 2GB), the percentage change of time gets worse again, and drops with increasing datasize to around 5\%.
+In contrast to these promising results, the results compiled with Clang20 on the same Skylake architecture, shown in \autoref{fig:HashTableSkylakeClang20AvgTime},
+indicate much less improvement through coroutines. Only for datasizes between 8MB and 32MB, a small improvement of around 5-10\% is observed, while for all other datasizes, the performance even degrades when using coroutines.
+In comparison to Clang20, the results compiled with Clang18 on the same Skylake architecture follow the same pattern, however, having this pattern moved upwards, meaning worse generally.
+(see in appendix \autoref{fig:appendix_HashTableSkylakeClang18AvgTime}).
+To additionally note is, that the highest performance gain is observed between using 10 to 20 coroutines before slightly decreasing with more coroutines,
+matching the around twice the number of physical cores respectively twiicce the the number of threads of the Skylake.
 
 % per datasize, per hardware architecture, per compiler, per number of coroutines, per number of threads
 \subsection{per datasize across compilers and architectures}
 \begin{figure}[h]
-  \begin{minipage}{0.32\textwidth}
+  \begin{minipage}{0.48\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small HashTable Skylake GNU14 Avg[ms]}
     \label{fig:HashTableSkylakeGNU14AvgTime}
   \end{minipage}
   \hfill
-  \begin{minipage}{0.32\textwidth}
+  \begin{minipage}{0.48\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small HashTable Skylake Clang20 Avg[ms]}
     \label{fig:HashTableSkylakeClang20AvgTime}
   \end{minipage}
-    \hfill
-  \begin{minipage}{0.32\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable Skylake Clang18 Avg[ms]}
-    \label{fig:HashTableSkylakeClang18AvgTime}
-  \end{minipage}
 \end{figure}
 
+For the AMD architecture, the exact same pattern as on the skylake across all three compilers appears, resulting in sligthly better results in terms of percentage improvement for GNU14 (see in appendix \autoref{fig:appendix_HashTableAmdGNU14AvgTime}),
+and slightly worse results for Clang20 (see in appendix \autoref{fig:appendix_HashTableAmdClang20AvgTime}) and Clang18 (see in appendix \autoref{fig:appendix_HashTableAmdClang18AvgTime}).
+However, instead of peaking with 10-20 coroutines, the best results are achieved with around 20-30 coroutines, which again matches the number of physical cores respectively threads of the AMD architecture.
 
+For the Xeon machine, the results compiled with GNU14 again follow the same pattern as on the Skylake architecture, achieving up to 15\% performance improvement for medium datasizes (64MB to 2GB) (see in appendix \autoref{fig:appendix_HashTablexeonGNU14AvgTime}).
+In contrast to the Skylake results, both Clang18 and Clang20 show consistent improvement for medium datasizes, with Clang20 performing slightly better than Clang18, reaching up to 10\% performance gain
+(see in appendix \autoref{fig:appendix_HashTablexeonClang20AvgTime} and \autoref{fig:appendix_HashTablexeonClang18AvgTime}).
+The best results are achieved with around 15-20 coroutines, not matching the number of physical cores respectively threads of the Xeon architecture, which is 32 respectively 64.
+
+These previous results are in complete contrast to the SkylakeX architecture, where only clang18 provides better results than the base lookup with less number of coroutines (around 5-12), but only from 64MB datasize upwards,
+reeaching up 30-45\% improvement depending on the exact datasize (see in appendix \autoref{fig:appendix_HashTableSkylakeXClang18AvgTime}). For large datasizes, above 1GB, the performance drops again,
+similar to the skylake architecture, with 4GB datasize only performing equally than the base lookup.
+
+
+% do picture of compilelr diff, and architecture diff?
 \begin{figure}[h]
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable Amd GNU14 Avg[ms]}
-    \label{fig:HashTableAmdGNU14AvgTime}
-  \end{minipage}
-  \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable Amd Clang20 Avg[ms]}
-    \label{fig:HashTableAmdClang20AvgTime}
-  \end{minipage}
-    \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable Amd Clang18 Avg[ms]}
-    \label{fig:HashTableAmdClang18AvgTime}
-  \end{minipage}
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/hashtableResults/architecture_diff_512MB_numThreads1_gnu14.png}
+  \caption{Architecture Comparison of HashTable at 512MB Datasize with GNU14}
+  \label{fig:architecture_diff_hashtable_512MB_gnu14}
 \end{figure}
-
 \begin{figure}[h]
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable xeon GNU14 Avg[ms]}
-    \label{fig:HashTablexeonGNU14AvgTime}
-  \end{minipage}
-  \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable xeon Clang20 Avg[ms]}
-    \label{fig:HashTablexeonClang20AvgTime}
-  \end{minipage}
-    \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable xeon Clang18 Avg[ms]}
-    \label{fig:HashTablexeonClang18AvgTime}
-  \end{minipage}
+  \centering
+  \includegraphics[width=0.6\paperwidth]{figures/hashtableResults/compiler_diff_128MB_numThreads1_skylake.png}
+  \caption{Compiler Comparison of HashTable at 128MB Datasize on Skylake}
+  \label{fig:compiler_diff_hashtable_skylake_128MB}
 \end{figure}
 
 
-\begin{figure}[h]
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable SkylakeX GNU14 Avg[ms]}
-    \label{fig:HashTableSkylakeXGNU14AvgTime}
-  \end{minipage}
-  \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable SkylakeX Clang20 Avg[ms]}
-    \label{fig:HashTableSkylakeXClang20AvgTime}
-  \end{minipage}
-    \hfill
-  \begin{minipage}{0.3\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hashtableResults/profile_percentage_ht_skylakeX_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
-    \caption{\small HashTable SkylakeX Clang18 Avg[ms]}
-    \label{fig:HashTableSkylakeXClang18AvgTime}
-  \end{minipage}
-\end{figure}
+
+
+% With more threads, the resullts do not improve usiiing the refernce wiith same amount of threads base lookup.
+% Hoowever, wiith more threads, the lookup iimproves welll.
+
+
+% todo ccheck cache hiti ratio, cache misses!, l1D cache misses iinteresting (maybe also other metrics)
+
 
 
 % ====== B+ Tree Results =======
@@ -142,21 +111,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Skylake GNU14 Avg[ms]}
     \label{fig:bptreeSkylakeGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Skylake Clang20 Avg[ms]}
     \label{fig:bptreeSkylakeClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Skylake Clang18 Avg[ms]}
     \label{fig:bptreeSkylakeClang18AvgTime}
   \end{minipage}
@@ -166,21 +135,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Amd GNU14 Avg[ms]}
     \label{fig:bptreeAmdGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Amd Clang20 Avg[ms]}
     \label{fig:bptreeAmdClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_amd_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree Amd Clang18 Avg[ms]}
     \label{fig:bptreeAmdClang18AvgTime}
   \end{minipage}
@@ -189,21 +158,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree xeon GNU14 Avg[ms]}
     \label{fig:bptreexeonGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree xeon Clang20 Avg[ms]}
     \label{fig:bptreexeonClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_xeon_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree xeon Clang18 Avg[ms]}
     \label{fig:bptreexeonClang18AvgTime}
   \end{minipage}
@@ -213,21 +182,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree SkylakeX GNU14 Avg[ms]}
     \label{fig:bptreeSkylakeXGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylakeX_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree SkylakeX Clang20 Avg[ms]}
     \label{fig:bptreeSkylakeXClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/bptreeResults/profile_percentage_bptree_skylake_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small bptree SkylakeX Clang18 Avg[ms]}
     \label{fig:bptreeSkylakeXClang18AvgTime}
   \end{minipage}
@@ -240,21 +209,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Skylake GNU14 Avg[ms]}
     \label{fig:linearHashtableSkylakeGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Skylake Clang20 Avg[ms]}
     \label{fig:linearHashtableSkylakeClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Skylake Clang18 Avg[ms]}
     \label{fig:linearHashtableSkylakeClang18AvgTime}
   \end{minipage}
@@ -264,21 +233,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Amd GNU14 Avg[ms]}
     \label{fig:linearHashtableAmdGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Amd Clang20 Avg[ms]}
     \label{fig:linearHashtableAmdClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_amd_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable Amd Clang18 Avg[ms]}
     \label{fig:linearHashtableAmdClang18AvgTime}
   \end{minipage}
@@ -287,21 +256,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable xeon GNU14 Avg[ms]}
     \label{fig:linearHashtablexeonGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable xeon Clang20 Avg[ms]}
     \label{fig:linearHashtablexeonClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_xeon_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable xeon Clang18 Avg[ms]}
     \label{fig:linearHashtablexeonClang18AvgTime}
   \end{minipage}
@@ -311,21 +280,21 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 \begin{figure}[h]
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_gnu14_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_gnu14_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable SkylakeX GNU14 Avg[ms]}
     \label{fig:linearHashtableSkylakeXGNU14AvgTime}
   \end{minipage}
   \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_clang20_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylakeX_clang20_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable SkylakeX Clang20 Avg[ms]}
     \label{fig:linearHashtableSkylakeXClang20AvgTime}
   \end{minipage}
     \hfill
   \begin{minipage}{0.3\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize4194304_metricAvg[ms]_numThreads1.png}
+    \includegraphics[width=\textwidth]{figures/linearHashtableResults/profile_percentage_linearhashtable_skylake_clang18_minDataSize262144_metricAvg[ms]_numThreads1.png}
     \caption{\small linearHashtable SkylakeX Clang18 Avg[ms]}
     \label{fig:linearHashtableSkylakeXClang18AvgTime}
   \end{minipage}
@@ -336,7 +305,7 @@ In particular, for small datasizes (up to 32MB), the peformance is rather worse 
 
 
 
-
+% Topdown perf analysis, auch in master thesis? Halt nur für einzeln ausgewählte benchmarks/profilings, e.g. nur für die besten optionen, was da noch verbessert werden könnte theoretisch (und warum es praktisch machbar oder nicht machbar ist)
 
 % \section{Data Structures per Compiler results}
 % \section{Data Structures per Hardware Architecture results}

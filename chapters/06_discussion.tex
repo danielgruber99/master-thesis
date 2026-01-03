@@ -2,11 +2,30 @@
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
 \chapter{Discussion and Future Work}\label{chapter:DiscussionAndFutureWork}
+% PUt key takeaways also here, why it didnt work so well with the chainign hashtable, and some compilers liek clang performeed worse than gcc
+% also the fact tha t different architectures have different performance gains
 
+Across different compi
 
 discussion of evaluatin of datastructure and duckdb
 
-duckdb paritally it works good but not as inj linear hashtable
+duckdb paritally it works good but not as inj linear hashtable and other datastructures
+
+
+
+
+unexpected that it peaks with medium datasize s and then goes down again with 4gB upwards, possible explanations:
+- cpu cache effects
+- not in all 3 caches storable
+
+
+
+Future work:
+- more datastructures, like ART Tree, LSM Trees, other hashtables (cuckoo, hopscotch)
+- more architectures (ARM, NUMA, RISC-V)
+- more compilers (MSVC)
+- more real world systems (other dbms, key value stores, ...)
+- more finetuning in duckdb
 
 
 

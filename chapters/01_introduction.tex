@@ -21,7 +21,7 @@
 
 \chapter{Introduction}\label{chapter:introduction}
 
-\section{Motivation}
+\section{Motivation, Problem Statement and Research Questions}
 Citation test~\parencite{latex}.
 
 How can Coroutines hide latencies for hashtable/bptree lookups?
@@ -31,6 +31,13 @@ What is the performance gain in duckdb?
 How does the performance gain differ between various architectures? (Intel x86 vs ARM vs NUMA)
 What about Threading and Coroutines? Hyperthreading/NUMA
 
+
+\begin{itemize}
+    \item how well do coroutines hide latencies for datastructures lookups in general?
+    \item How well do the different compilers (gcc, clang) support coroutines
+    \item do hardware architectures and its compoonents (cpu core, threads, cache sizes, numa architectures) have an influence on the performance gain through coroutines, and if so, how much?
+    \item how well do coroutines hide latencies for datastructure lookups in a real database management system (e.g. duckdb)?
+\end{itemize}
 
 
 

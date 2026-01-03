@@ -35,43 +35,32 @@ Another opensource database PostgreSQL are implemented in C, making the integrat
 For this work, the focus is on the hash-join implementation of DuckDB,
 as it is the most relevant join algorithm for large analytical queries, including TPC-H queries used for the final benchmarking.
 
-\section{Understanding the implemented Hashtable in DuckDB}\label{section:UnderstandingLinearHashtableDuckDB}
+% \section{Understanding the implemented Hashtable in DuckDB}\label{section:UnderstandingLinearHashtableDuckDB}
 % Citation test~\parencite{latex}.
+
+\section{Integration of Coroutines in DuckDBs Join Hashtable}\label{section:IntegrationCoroutinesDuckDB}
+
 DuckDB uses for the hash join a linear probing hashtable implementation with chaining for the same keys.
-The hashtable is implemented in the files \texttt{join\_hashtable.cpp} and \texttt{join\_hashtable.hpp}.
+The hashtable is implemented in the files \texttt{src/execution/join\_hashtable.cpp} and \texttt{src/include/duckdb/execution/join\_hashtable.hpp}.
 
 The vectorized execution model of DuckDB processes data in chunks, where each chunk contains a set of rows from a table.
 When building the hashtable, DuckDB processes these chunks and inserts the key-value pairs into the hashtable.
 So, ideally, each chunk is processed by a separate thread, having its own hashtable instance to avoid contention.
 Once all threads have completed building their local hashtables, these are then merged into a single global hashtable.
 
-% The hashtable is also designed to be thread-safe, allowing multiple threads to build and probe the hashtable concurrently.
 
+% Difficulty in understanding the hashtable and implementing coroutines in huge concept of hastable withotu knowing full picture.
+% has to be done in Join phase of the hastable (which is divided in different datachaunks and each datachunk is handled by a thread wher ea thread cna possibly handle more datachunks).
+% In this thread coroutines can easily integrated as they are asynchronoulsy called and ...
 
-\section{Integration of Coroutines in DuckDB}\label{section:IntegrationCoroutinesDuckDB}
+% The linearHashtable already presents a similar implementation that the one in DuckDB, thus the coroutine implementation from Section~\ref{sec:CoroutinesInLinearProbingHashtable} was adapted to fit into DuckDB's hashtable structure and logic.
+% The scheduler is also the same used.
 
-DuckDB integration: linear probing hashtabale where if same key it is chained.
+% Entry point to add GetRowpointer function specifying number of coroutines to use.
 
-% join_hashtable.cpp and join\_hashtable.hpp (vs aggregate hashtable in aggregate\_hashtable.hpp.cpp and base\_aggregate\_hashtable.cpp/.hpp)
+% Why does this already work for threading? as each thread handles its own datachunk and thus its own nr of coroutines coroutines.
 
-Difficulty in understanding the hashtable and implementing coroutines in huge concept of hastable withotu knowing full picture.
-has to be done in Join phase of the hastable (which is divided in different datachaunks and each datachunk is handled by a thread wher ea thread cna possibly handle more datachunks).
-In this thread coroutines can easily integrated as they are asynchronoulsy called and ...
-
-
-The linearHashtable already presents a similar implementation that the one in DuckDB, thus the coroutine implementation from Section~\ref{sec:CoroutinesInLinearProbingHashtable} was adapted to fit into DuckDB's hashtable structure and logic.
-The scheduler is also the same used.
-
-
-Entry point to add GetRowpointer function specifying number of coroutines to use.
-
-Why does this already work for threading? as each thread handles its own datachunk and thus its own nr of coroutines coroutines.
-
-
-
-
-
-\begin{lstlisting}[language=C, frame=single, caption={duckdb coroutine lookup}, label={lst:duckdb_coroutine_lookup}]
+\begin{lstlisting}[language=C, frame=single, caption={duckdb coroutine lookup}, label={lst:duckdb_coroutine_lookup}, numbers=left]
 #define PREFETCH(addr) _mm_prefetch(addr, _MM_HINT_NTA)
 
 struct Task {
@@ -79,9 +68,10 @@ struct Task {
 	using handle_type = std::coroutine_handle<promise_type>;
 	struct promise_type {
 		std::suspend_never initial_suspend() const noexcept { return {}; }
-		std::suspend_always final_suspend()const noexcept{return {};}
+		std::suspend_always final_suspend() const noexcept {return {};}
 		void unhandled_exception() const noexcept {	}
-		Task get_return_object() noexcept { return Task {handle_type::from_promise(*this)};}
+		Task get_return_object() noexcept {
+			return Task {handle_type::from_promise(*this)};}
 		void return_void() noexcept { }
 	};
 	handle_type h_;
@@ -98,11 +88,10 @@ Task ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTabl
 	auto i = offset;
 
 	for (; i < count; i += numCoroutines) {
-		auto row_hash = hashes_dense[i]; // hashes have been flattened before -> always access dense
+		auto row_hash = hashes_dense[i];
 		auto row_ht_offset = row_hash & ht.bitmask;
 
 		if (USE_SALTS) {
-			// increment the ht_offset of the entry as long as the next entry is occupied and salt does not match
 			while (true) {
 				PREFETCH(&entries[row_ht_offset]);
 				co_await std::suspend_always {};
@@ -114,17 +103,17 @@ Task ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTabl
 				const hash_t row_salt = ht_entry_t::ExtractSalt(row_hash);
 				const bool salt_match = entry.GetSalt() == row_salt;
 				if (salt_match) {
-					// we know that the enty is occupied and the salt matches -> compare the keys
 					auto row_index = GetOptionalIndex<HAS_SEL>(row_sel, i);
-					const auto row_ptr_insert_to = FlatVector::GetData<data_ptr_t>(pointers_result_v);
-					const auto ht_offsets_and_salts = FlatVector::GetData<idx_t>(state.ht_offsets_and_salts_v);
+					const auto row_ptr_insert_to =
+						FlatVector::GetData<data_ptr_t>(pointers_result_v);
+					const auto ht_offsets_and_salts =
+						FlatVector::GetData<idx_t>(state.ht_offsets_and_salts_v);
 					state.keys_to_compare_sel.set_index(keys_to_compare_count, row_index);
 					row_ptr_insert_to[row_index] = entry.GetPointer();
 					ht_offsets_and_salts[row_index] = row_ht_offset | entry.GetSaltWithNulls();
 					keys_to_compare_count += 1;
 					break;
 				}
-				// full and salt do not match -> continue probing
 				IncrementAndWrap(row_ht_offset, ht.bitmask);
 			}
 		} else {
@@ -134,13 +123,7 @@ Task ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTabl
 			const bool occupied = entry.IsOccupied();
 			if (occupied) {
 				// the entry is occupied -> compare the keys
-				auto row_index = GetOptionalIndex<HAS_SEL>(row_sel, i);
-				const auto row_ptr_insert_to = FlatVector::GetData<data_ptr_t>(pointers_result_v);
-				const auto ht_offsets_and_salts = FlatVector::GetData<idx_t>(state.ht_offsets_and_salts_v);
-				state.keys_to_compare_sel.set_index(keys_to_compare_count, row_index);
-				row_ptr_insert_to[row_index] = entry.GetPointer();
-				ht_offsets_and_salts[row_index] = row_ht_offset | entry.GetSaltWithNulls();
-				keys_to_compare_count += 1;
+				...  // similar to above's if (salt_match) block witout break;
 			}
 		}
 	}
@@ -172,16 +155,40 @@ Task ProbeForPointersInternalCoro(JoinHashTable::ProbeState &state, JoinHashTabl
 
 
 
-\section{Benchmarking}\label{section:DuckDBBenchmarking}
-which benchmarking used, integrated benchmarkign framework of duckdb and only tpch queries
+\section{Benchmarking Setup}\label{section:DuckDBBenchmarking}
+% TODOOOO, rewrite more, this is initial draft generated with copilot sonnet 4.5, already adjusted a bit, but needs more work
+For evaluating the coroutine-enhanced hashtable implementation within DuckDB, this work leverages DuckDB's integrated benchmarking framework and profiling infrastructure.
+DuckDB provides a sophisticated profiling system through \texttt{PRAGMA} statements that enable precise performance measurements and query execution analysis~\cite{duckdb-profiling}.
+The benchmarking framework was configured to measure query execution times using DuckDB's \texttt{PRAGMA enable\_profiling} directive with \texttt{profiling\_mode} set to \texttt{standard}, capturing operator-level timing information in seconds.
+
+The implementation allows switching between the baseline and coroutine-enabled hashtable implementations using compiler preprocessor directives.
+A \texttt{\#if} macro was employed in the hashtable lookup code to conditionally compile either the standard implementation or the coroutine-based variant.
+This approach ensures that both implementations use identical underlying data structures and differ only in the lookup mechanism, thereby providing a fair and controlled comparison.
+The coroutine implementation was benchmarked with varying degrees of parallelism, testing configurations with 1, 2, 4, 8, 16, 32, and 64 concurrent coroutines per thread to identify the optimal level of asynchronous prefetching.
+
+As the primary workload for evaluation, all 22 queries from the TPC-H benchmark suite (Q1 through Q22) are executed.
+The TPC-H benchmark is widely recognized as the industry-standard for evaluating analytical database performance, featuring complex join operations, aggregations, and filtering that stress test the hashtable implementation during hash-join execution.
+For this evaluation, a scale factor of 100 (SF100) is used, generating approximately 100GB of data across the TPC-H tables.
+This scale factor was chosen to ensure that the dataset size is representative of real-world analytical workloads while remaining computationally feasible for comprehensive benchmarking across multiple architectures.
+
+The benchmarking campaign was conducted across multiple hardware architectures to assess the portability and performance characteristics of the coroutine implementation under diverse microarchitectural conditions.
+As detailed in~\autoref{sec:BenchmarkingSetup}, the evaluation spanned four distinct processor architectures: Intel Skylake, Intel Skylake-X, AMD, and Intel Xeon processors.
+Each architecture presents different cache hierarchies, memory subsystems, and instruction-level parallelism characteristics, which can significantly impact the effectiveness of prefetching strategies.
+All benchmarks were compiled using the same compiler configurations specified in~\autoref{sec:BenchmarkingSetup} to maintain consistency across the evaluation platforms.
+For each query and configuration, multiple runs were performed to account for variance, and the reported results represent the median execution time to minimize the impact of outliers caused by system noise or background processes.
 
 
-compiler flag, \#if macro in code used to switch between normal and coroutine hashtable implementation.
+% see https://duckdb.org/docs/stable/dev/profiling
 
+% see https://duckdb.org/docs/stable/configuration/pragmas
 
+% see especially https://duckdb.org/docs/stable/configuration/pragmas#profiling
 
 
 \section{Results}\label{section:duckdbresults}
 
+
+% Mit explain analyze sql bäume einbauen in master thesis
+% Für große duckdb queries wirds besser, für kleine nicht, prefeteching stuff, etc. Vektorisierung von coroutinen datachunks etc. Manche queries langsamer, weil intermediate results so klein
 
 

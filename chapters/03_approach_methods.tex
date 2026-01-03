@@ -68,9 +68,9 @@ With this second approach, the implemented coroutine function for the lookup cou
 while the caller is responsible for resuming the coroutine until all lookups are processed.
 Furthermore, the caller is responsible for distinguishing between three states:
 \begin{itemize}
-    \item 1) the lookup is not yet finished (the coroutine yielded without finding the value yet),
-    \item 2) the lookup found the value (the coroutine yielded with a found value), and
-    \item 3) the lookup did not find the value (the coroutine finished without yielding a value).
+    \item 1) the lookup is not yet finished% (the coroutine yielded without finding the value yet),
+    \item 2) the lookup found the value% (the coroutine yielded with a found value), and
+    \item 3) the lookup did not find the value% (the coroutine finished without yielding a value).
 \end{itemize}
 
 Looking at this, it is not a binary choice between found vs. not found, but a ternary choice that the caller has to handle.
@@ -96,9 +96,9 @@ std::vector<typename resultType>
 lookupEntries(datastructure ds, lookupsVector lookups) noexcept {
     resultType result;
     std::array<Task, numCoroutines> coroutines =
-        ([&ht, &lookups, &result]<size_t... Is>(std::index_sequence<Is...>) {
-            return std::array{lookup<numCoroutines>(ht, lookups, result, Is)...};
-        })(std::make_index_sequence<numCoroutines>{});
+        ([&ht, &lookups, &result]<size_t... Is>(std::index_sequence<
+            Is...>) {return std::array{lookup<numCoroutines>(ht, lookups,
+             result, Is)...};})(std::make_index_sequence<numCoroutines>{});
     while (true) {
         size_t activeCoroutines = 0;
         for (auto &c: coroutines) {
@@ -143,7 +143,7 @@ allowing the scheduler to manage its completion and destruction appropriately.
 Furthermore, the wrapper class has a handle\_type member that holds the coroutine handle,
 which the scheduler uses to resume the coroutine and check its completion status.
 
-\begin{lstlisting}[language=C++, caption={Scheduler for lookup}, label={lst:scheduler}, numbers=left]
+\begin{lstlisting}[language=C++, frame=single, caption={Scheduler for lookup}, label={lst:scheduler}, numbers=left]
 struct Task {
     struct promise_type;
     using handle_type = std::coroutine_handle<promise_type>;
@@ -151,7 +151,8 @@ struct Task {
         std::suspend_never initial_suspend() const noexcept { return {}; }
         std::suspend_always final_suspend() const noexcept { return {}; }
         void unhandled_exception() const noexcept {}
-        Task get_return_object() noexcept { return Task{handle_type::from_promise(*this)}; }
+        Task get_return_object() noexcept {
+            return Task{handle_type::from_promise(*this)}; }
         void return_void() noexcept {}
     };
     handle_type h_; // Handle of the coroutine
@@ -179,7 +180,7 @@ When performing a lookup, the hash index is computed from the key, and the corre
 The linked list in the bucket is then traversed to find the entry with the matching key.
 The size of the hashtable is chosen to be a power of two to allow efficient computation of the hash index using a bitwise AND operation with a mask
 and is the next power of two of the handed-over size during construction.
-So for all hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
+% So for all hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
 
 The coroutine-based lookup function for the chaining hashtable is shown in \autoref{lst:coroutine_ht_lookup}.
 For scheduling multiple coroutines, the scheduler from \autoref{lst:scheduler} is used.
@@ -197,8 +198,8 @@ If one coroutine is finished it returns with co\_return and the scheduler will n
 
 \begin{lstlisting}[language=C, frame=single, caption={coroutine lookup in chaining hashtable}, label={lst:coroutine_ht_lookup}]
 template<const size_t numCoroutines>
-Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups, auto &results,
-                const size_t offset) noexcept {
+Task lookup(const ht_primary_key::Hashtable &ht, const auto &lookups,
+        auto &results, const size_t offset) noexcept {
     auto idx = offset; size_t key; uint64_t hashIdx;
 
     for (; idx < lookups.size(); idx += numCoroutines) {
@@ -248,48 +249,45 @@ and the chain of entries at that slot is traversed to retrieve all entries with 
 by prefetching each next entry in the chain and suspending the coroutine after each prefetch.
 The found entries are added to the results vector, a pointer/reference passed into the coroutine function from the calling scheduler.
 
-\begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}]
+\begin{lstlisting}[language=C, frame=single, caption={linear probing hashtable coroutine lookup}, label={lst:linear_probing_ht_lookup_coro}, numbers=left]
 template<const size_t numCoroutines>
-Task lookup_ht_entry_t(const LinearProbingHashTable<uint64_t, uint64_t> &ht,
-                            const auto &lookups, auto &results, const size_t offset) noexcept {
+Task lookup_ht_entry_t(const LinearProbingHashTable<uint64_t, uint64_t>
+        &ht, const auto &lookups, auto &results, const size_t offset) {
     auto idx = offset; size_t key; uint64_t hashIdx; uint64_t hash;
     LinearProbingHashTable<uint64_t, uint64_t>::EntryData *data = nullptr;
 
     for (; idx < lookups.size(); idx += numCoroutines) {
-        key = lookups[idx];
-        hash = ht.ComputeHash(key);
+        key = lookups[idx]; hash = ht.ComputeHash(key);
         uint64_t slot = hash & ht.bitmask;
         uint64_t salt = ht.ExtractSalt(hash);
 
-        // Find SLOT
         ht_entry_t entry;
         while (true) {
-            PREFETCH(&(ht.entries[slot]));  // Initial prefetch of the first value
-            co_await std::suspend_always{}; // Suspend the coroutine until resumed
-            entry = ht.entries[slot];       // Read the previously cached value
-            if (!entry.IsOccupied()) { break; } // Empty slot found
+            PREFETCH(&(ht.entries[slot]));
+            co_await std::suspend_always{};
+            entry = ht.entries[slot];
+            if (!entry.IsOccupied()) { break; }
             if (ht.use_salts) {
                 if (entry.GetSalt() == salt) {
                     data = reinterpret_cast<
-                            LinearProbingHashTable<uint64_t, uint64_t>::EntryData *>(
-                            entry.GetPointer());
+                            LinearProbingHashTable<uint64_t,
+                            uint64_t>::EntryData *>(entry.GetPointer());
                     if (data && ht.key_equal(data->key, key)) {
-                        entry = ht.entries[slot]; break; } // Found matching key
+                        entry = ht.entries[slot]; break; }
                 }
             } else {
-                data = reinterpret_cast<LinearProbingHashTable<
-                        uint64_t, uint64_t>::EntryData *>(entry.GetPointer());
+                data = reinterpret_cast<LinearProbingHashTable<uint64_t,
+                 uint64_t>::EntryData *>(entry.GetPointer());
                 if (data && ht.key_equal(data->key, key)) {
-                    entry = ht.entries[slot]; break; }  // Found matching key
+                    entry = ht.entries[slot]; break; }
             }
             // Continue linear probing
             data = nullptr;
             IncrementAndWrap(slot, ht.bitmask);
         }
-
         if(data == nullptr) { continue; } // Not found
-        // Found an entry, retrieve all values in the chain
-        LinearProbingHashTable<uint64_t, uint64_t>::EntryData *current = data;
+        LinearProbingHashTable<uint64_t, uint64_t
+            >::EntryData *current = data;
         while (current) {
             results.push_back(current);
             PREFETCH(current->next);
@@ -334,7 +332,7 @@ it continues traversing down the tree with prefetching the next node at each lev
 The lookup in the leaf node is performed exactly as in the base lookup implementation,
 with the eventual result being written into the results vector passed by reference into the coroutine function.
 
-\begin{lstlisting}[language=C++, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}]
+\begin{lstlisting}[language=C++, frame=single, caption={B+ Tree lookup coroutine}, label={lst:bptree_lookup_coro}, numbers=left]
 template<typename Key_t, typename Value_t, const size_t numCoroutines>
 Task lookup(const BPTree<Key_t, Value_t> &t, const auto &lookups,
                 auto &results, const size_t offset) noexcept {
@@ -346,15 +344,18 @@ Task lookup(const BPTree<Key_t, Value_t> &t, const auto &lookups,
         while (!node->isLeaf()) {
             size_t i = 0;
             while (i < node->nr_keys && key >= node->keys[i]) { i++; }
-            PREFETCH(std::move(dynamic_cast<PtrNode<Key_t, Value_t> *>(node)->children[i]));
+            PREFETCH(std::move(dynamic_cast<
+                    PtrNode<Key_t, Value_t> *>(node)->children[i]));
             co_await std::suspend_always{};
-            node = dynamic_cast<PtrNode<Key_t, Value_t> *>(node)->children[i];
+            node = dynamic_cast<PtrNode<
+                Key_t, Value_t> *>(node)->children[i];
         }
         LeafNode<Key_t, Value_t> *leafNode =
                 std::move(dynamic_cast<LeafNode<Key_t, Value_t> *>(node));
         for (size_t i = 0; i < leafNode->nr_keys; i++) {
             if (leafNode->keys[i] == key) {
-                results.push_back(std::make_tuple(std::move(key), std::move(leafNode->values[i])));
+                results.push_back(std::make_tuple(std::move(key),
+                                  std::move(leafNode->values[i])));
                 break; // Stop searching if key is found
             }
         }
@@ -391,6 +392,14 @@ To verify the effectiveness of coroutines in hiding cache misses across differen
 three widely used data structures are selected for evaluation: chaining hash tables, linear probing hash tables, and B+ trees.
 
 For the hash table one enty is of size 24 bytes (key, value each and next pointer each 8 bytes).
+For all chaining hashtables constructed the load factor is 100\% to reflect a bad hastable scenario with many collisions.
+
+For the B+ tree, each key-value pair is of size 16 bytes (key and value each 8 bytes).
+The B+ tree is configured with a default node size of 128 entries per node.
+However, the balance of the B+ tree is arbitrary, as the entries are randomly inserted without any rebalancing mechanism.
+
+For the linear probing hashtable, each entry is of size 16 bytes (key and value each 8 bytes).
+The load factor is thresholded at 75\%, meaning that when the hashtable reaches 75\% capacity, it resizes by doubling its size.
 
 \paragraph{Overview of different machines}
 Furthermore to evaluate the performance of coroutine implementations across different hardware architectures,
@@ -406,7 +415,7 @@ This includes following four machines, all based on the x86-64 architecture:
 % More details about the machines and their specifications are provided in TODO. % \autoref{tab:machines}. im Anhang?
 
 \paragraph{Overview of different compilers}
-Additionally to benchmarking on different machines, multiple compilers are used to evaluate the performance of coroutine implementations.
+Additionally to benchmarking on different machines, multiple compilers are used to evaluate the performance of coroutine implementations across compilers.
 This includes following compilers:
 \begin{itemize}
     \item GCC/GNU 14

@@ -1,0 +1,190 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nty/global//global/global/global}
+    \entry{baker2018understanding}{misc}{}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=0f7aee0de9183a9d713d7d921db988ec}{%
+           family={Baker},
+           familyi={B\bibinitperiod},
+           given={Lewis},
+           giveni={L\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{bibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorbibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authornamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \field{extraname}{1}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{howpublished}{\url{https://lewissbaker.github.io/2017/11/17/understanding-operator-co-await}}
+      \field{month}{11}
+      \field{note}{Accessed: 2025-10-30}
+      \field{title}{C++ Coroutines: Understanding operator co\_await}
+      \field{year}{2018}
+    \endentry
+    \entry{baker2018promise}{misc}{}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=0f7aee0de9183a9d713d7d921db988ec}{%
+           family={Baker},
+           familyi={B\bibinitperiod},
+           given={Lewis},
+           giveni={L\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{bibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorbibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authornamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \field{extraname}{2}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{howpublished}{\url{https://lewissbaker.github.io/2018/09/05/understanding-the-promise-type}}
+      \field{month}{9}
+      \field{note}{Accessed: 2025-10-30}
+      \field{title}{C++ Coroutines: Understanding the promise type}
+      \field{year}{2018}
+    \endentry
+    \entry{baker2017coroutines}{misc}{}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=0f7aee0de9183a9d713d7d921db988ec}{%
+           family={Baker},
+           familyi={B\bibinitperiod},
+           given={Lewis},
+           giveni={L\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{fullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{bibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorbibnamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authornamehash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhash}{0f7aee0de9183a9d713d7d921db988ec}
+      \strng{authorfullhashraw}{0f7aee0de9183a9d713d7d921db988ec}
+      \field{extraname}{3}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{howpublished}{\url{https://lewissbaker.github.io/2017/09/25/coroutine-theory}}
+      \field{month}{9}
+      \field{note}{Accessed: 2025-10-30}
+      \field{title}{Coroutine Theory}
+      \field{year}{2017}
+    \endentry
+    \entry{corobase}{article}{}{}
+      \name{author}{3}{}{%
+        {{un=0,uniquepart=base,hash=019c47e38e5a5c57dd7a13167b46b9b1}{%
+           family={He},
+           familyi={H\bibinitperiod},
+           given={Yongjun},
+           giveni={Y\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=2a681d1f0b64bc1b3f5cc275e2a196e0}{%
+           family={Lu},
+           familyi={L\bibinitperiod},
+           given={Jiacheng},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=b79c4b31aa7aff3c9e6f9c0c65b7dbf6}{%
+           family={Wang},
+           familyi={W\bibinitperiod},
+           given={Tianzheng},
+           giveni={T\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {VLDB Endowment}%
+      }
+      \strng{namehash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{fullhash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{fullhashraw}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{bibnamehash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{authorbibnamehash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{authornamehash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{authorfullhash}{029dbc68fda649f702c2fc12a2f54544}
+      \strng{authorfullhashraw}{029dbc68fda649f702c2fc12a2f54544}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Proc. VLDB Endow.}
+      \field{number}{3}
+      \field{title}{CoroBase: Coroutine-Oriented Main-Memory Database Engine}
+      \field{volume}{14}
+      \field{year}{2021}
+      \field{pages}{431\bibrangedash 444}
+      \range{pages}{14}
+      \verb{doi}
+      \verb 10.14778/3430915.3430932
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.14778/3430915.3430932
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.14778/3430915.3430932
+      \endverb
+    \endentry
+    \entry{latex}{book}{}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=5d77435450d10a850a5b58577b9a456b}{%
+           family={Lamport},
+           familyi={L\bibinitperiod},
+           given={Leslie},
+           giveni={L\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {Addison-Wesley Professional}%
+      }
+      \strng{namehash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{fullhash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{fullhashraw}{5d77435450d10a850a5b58577b9a456b}
+      \strng{bibnamehash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{authorbibnamehash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{authornamehash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{authorfullhash}{5d77435450d10a850a5b58577b9a456b}
+      \strng{authorfullhashraw}{5d77435450d10a850a5b58577b9a456b}
+      \field{sortinit}{L}
+      \field{sortinithash}{7c47d417cecb1f4bd38d1825c427a61a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{LaTeX : A Documentation Preparation System User's Guide and Reference Manual}
+      \field{year}{1994}
+    \endentry
+  \enddatalist
+  \missing{duckdb-profiling}
+\endrefsection
+\endinput
+
